@@ -1,3 +1,6 @@
+# Secrets
+.env
+
 # IntelliJ 설정
 .idea/
 *.iml
