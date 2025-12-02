@@ -2,9 +2,6 @@
 .idea/
 *.iml
 
-# Mac OS
-.DS_Store
-
 # Docker volumes (데이터 폴더)
 data/
 
