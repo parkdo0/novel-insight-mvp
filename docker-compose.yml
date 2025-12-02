@@ -1,0 +1,47 @@
+version: '3.8'
+
+services:
+  novel-mysql:
+    image: mysql:8.0
+    container_name: novel-mysql-container
+    ports:
+      - "3306:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root1234!
+      MYSQL_DATABASE: novel_insight
+      MYSQL_USER: novel_user
+      MYSQL_PASSWORD: novel1234!
+      TZ: Asia/Seoul
+    volumes:
+      - ./data/mysql:/var/lib/mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    networks:
+      - novel-net
+
+  # ▼▼▼ [도영 님이 작성할 부분] ▼▼▼
+  novel-redis:
+    image: redis:alpine
+    container_name: novel-redis-container
+    ports:
+      - "6379:6379"
+    networks:
+      - novel-net
+  ### 여기를 채우세요 (image, container_name, ports, networks 필요) ###
+
+  novel-rabbitmq:
+    image: rabbitmq:management # 관리자 화면(Web UI)이 포함된 버전
+    container_name: novel-rabbitmq-container
+    ports:
+      - "5672:5672"   # 자바랑 통신하는 포트
+      - "15672:15672" # 관리자 웹 페이지 포트
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - novel-net
+
+networks:
+  novel-net:
+    driver: bridge

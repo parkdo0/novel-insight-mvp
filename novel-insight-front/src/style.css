@@ -1,0 +1,84 @@
+:root {
+    --primary-color: #42b883;
+    --primary-hover: #3aa876;
+    --text-main: #333;
+    --text-sub: #888;
+    --bg-light: #f9f9f9;
+    --border-color: #eee;
+    --danger-color: #ff4d4f;
+}
+
+body {
+    margin: 0;
+    background-color: #f4f6f8;
+    font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    color: var(--text-main);
+    line-height: 1.5;
+}
+
+/* === 레이아웃 공통 === */
+.container {
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 20px;
+}
+
+/* === 카드 스타일 === */
+.card {
+    background: white;
+    padding: 20px;
+    border-radius: 12px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    border: 1px solid var(--border-color);
+}
+
+/* === 버튼 스타일 (btn) === */
+button { cursor: pointer; font-family: inherit; }
+.btn {
+    padding: 10px 20px;
+    border-radius: 6px;
+    font-weight: bold;
+    border: none;
+    font-size: 0.95rem;
+    transition: all 0.2s;
+}
+.btn-primary { background: var(--primary-color); color: white; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-secondary { background: #eee; color: #555; }
+.btn-secondary:hover { background: #ddd; }
+.btn-outline { background: white; border: 1px solid #ddd; color: #555; }
+.btn-outline:hover { border-color: #bbb; background: #fcfcfc; }
+.btn-block { width: 100%; }
+.btn:disabled { background: #ccc; cursor: not-allowed; }
+
+/* === 입력 폼 스타일 === */
+input, textarea {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 1rem;
+    box-sizing: border-box;
+    margin-bottom: 10px;
+    outline: none;
+    transition: border-color 0.2s;
+}
+input:focus, textarea:focus { border-color: var(--primary-color); }
+
+/* === 뱃지 스타일 === */
+.badge { padding: 4px 8px; border-radius: 4px; font-size: 0.8rem; font-weight: bold; }
+.badge.free { background-color: #e8f5e9; color: #2e7d32; }
+.badge.pay { background-color: #ffebee; color: #c62828; }
+.badge.purchased { background-color: #e3f2fd; color: #1976d2; }
+
+/* === 탭 스타일 === */
+.tabs { display: flex; border-bottom: 2px solid var(--border-color); margin-bottom: 20px; }
+.tab { padding: 15px 25px; cursor: pointer; font-weight: bold; color: var(--text-sub); transition: color 0.2s; }
+.tab:hover { color: var(--text-main); }
+.tab.active { color: var(--primary-color); border-bottom: 2px solid var(--primary-color); margin-bottom: -2px; }
+
+/* === 유틸리티 === */
+.text-center { text-align: center; }
+.mt-20 { margin-top: 20px; }
+.mb-20 { margin-bottom: 20px; }
+.flex-between { display: flex; justify-content: space-between; align-items: center; }

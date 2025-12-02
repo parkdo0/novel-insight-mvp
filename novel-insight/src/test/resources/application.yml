@@ -1,0 +1,13 @@
+spring:
+  datasource:
+    # 테스트도 로컬 Docker DB를 씁니다.
+    url: jdbc:mysql://localhost:3306/novel_insight?useSSL=false&allowPublicKeyRetrieval=true
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # ★★★ 테스트 환경이니까 그냥 적어줍니다. (환경변수 X)
+    username: novel_user
+    password: novel1234!
+
+  jpa:
+    hibernate:
+      ddl-auto: update # 테스트 때마다 테이블 만들고 지우고 함
+    show-sql: true

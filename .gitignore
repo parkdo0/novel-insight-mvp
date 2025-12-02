@@ -1,0 +1,24 @@
+# IntelliJ 설정
+.idea/
+*.iml
+
+# Mac OS
+.DS_Store
+
+# Docker volumes (데이터 폴더)
+data/
+
+# Backend (Gradle build)
+novel-insight/build/
+novel-insight/.gradle/
+novel-insight/out/
+
+# Frontend (Node modules & build)
+novel-insight-front/node_modules/
+novel-insight-front/dist/
+novel-insight-front/.output/
+
+# Python (venv & cache)
+python-service/__pycache__/
+python-service/venv/
+python-service/.pytest_cache/

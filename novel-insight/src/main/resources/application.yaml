@@ -1,0 +1,37 @@
+spring:
+  application:
+    name: novel-insight
+  datasource:
+    # Docker가 떠있는 내 PC(localhost)에 접속
+    url: jdbc:mysql://localhost:3306/novel_insight?useSSL=false&allowPublicKeyRetrieval=true
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    # ★★★ 비밀번호 하드코딩 금지! 환경변수(${...})로 주입받습니다.
+    username: novel_user
+    password: novel1234!
+  jpa:
+    # 콘솔에 실행되는 SQL을 보여줍니다 (개발용)
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true # SQL을 예쁘게 정렬해서 보여줌
+    # [중요] ddl-auto
+    # update: Entity와 DB 비교해서 변경분만 반영 (개발용 추천)
+    # validate: 틀리면 에러 냄 (운영용)
+    hibernate:
+      ddl-auto: update
+  batch:
+    jdbc:
+      initialize-schema: always # "항상 확인하고 없으면 만들어라"
+    job:
+      # enabled: true 서버 켜질 때 Job 자동 실행 (기본값이지만 명시)
+      # ▼▼▼ [수정] true -> false 로 변경!
+      # "서버 켤 때 배치는 돌리지 마. (파이썬 테스트 해야 하니까)"
+      enabled: false
+  cloud:
+    compatibility-verifier:
+      enabled: false
+
+jwt:
+  secret: "v3rY-s3cr3t-k3y-f0r-n0v3l-1ns1ght-mvp-pr0j3ct-mUst-b3-l0ng" # 32글자 이상 길게!
+  issuer: "novel-insight"
+  access-duration-hour: 24 # 유효기간 24시간

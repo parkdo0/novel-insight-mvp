@@ -1,0 +1,32 @@
+### XSS 공격 (게시판 테러: 자바스크립트 삽입)
+POST http://localhost:8080/reviews
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzM4NCJ9.eyJzdWIiOiI5IiwiaXNzIjoibm92ZWwtaW5zaWdodCIsImlhdCI6MTc2NDQ5Nzc4MywiZXhwIjoxNzY0NTg0MTgzLCJlbWFpbCI6Im5ld191c2VyQHNwYXJ0YS5jb20iLCJyb2xlIjoiVVNFUiJ9._6YJsKKuogNZeqctP_2jDGY0Ya7x1t5b6_9aNFtlUFVwKTUxra7IFrQVgq5tS_4G
+
+{
+  "novelId": 1,
+  "content": "<script>alert('당신의 쿠키를 훔쳤습니다!');</script>"
+}
+
+### 페이징 검색 (1페이지, 10개만)
+GET http://localhost:8080/novels/search?page=0&size=10
+
+### 조건 + 페이징 (제목에 '재벌'이 들어가고, 2페이지)
+GET http://localhost:8080/novels/search?title=재벌&page=1&size=10
+
+### 로그인 (토큰 발급)
+POST http://localhost:8080/login
+Content-Type: application/json
+
+{
+  "email": "new_user@sparta.com",
+  "password": "1234"
+}
+
+### MSA 연동 테스트 (Java -> Python)
+POST http://localhost:8080/api/analyze
+Content-Type: application/json
+
+{
+  "text": "이 소설은 주인공이 100번 회귀해서 마왕을 잡는 내용이다."
+}
