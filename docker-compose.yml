@@ -67,12 +67,12 @@ services:
     container_name: novel-kafka-container
     # 힌트 1: ports는 2개 필요 (9092: 외부 접속용, 29092: Docker 내부용)
     ports:
-      - "9092:9092"   # ← 이건 제공! (Java/Python이 접속할 포트)
-      - "29092:29092"         # ← Docker 내부용 포트를 추가하세요 (29092 사용)
+      - "9092:9092"   # ← 외부 접속용 (내 PC → Kafka)
+      - "29092:29092" # ← Docker 내부용 (Python 컨테이너 → Kafka)
 
     # 힌트 2: depends_on (Zookeeper가 먼저 떠야 함)
     depends_on:
-      - novel-zookeeper  # ← Zookeeper 서비스 이름을 적으세요
+      - novel-zookeeper  # ← Kafka는 Zookeeper 없이 못 뜸!
 
     environment:
       # [중요] Kafka 브로커 ID (여러 대 띄울 때 구분용, 단일 서버는 1번)
@@ -93,7 +93,7 @@ services:
 
     # 힌트 3: networks (다른 서비스들과 같은 네트워크 사용)
     networks:
-      - novel-net  # ← 네트워크 이름을 적으세요 (위에서 확인!)
+      - novel-net  # ← MySQL, Redis, RabbitMQ와 같은 네트워크 (서로 통신 가능!)
 
 networks:
   novel-net:
