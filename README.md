@@ -1,292 +1,287 @@
-# 📚 Novel Insight MVP - 전체 실행 가이드
+# Novel Insight MVP
 
-**"문피아에서 받들고 싶은 것" - 데이터 기반 작가 인사이트 시스템**
-
----
-
-## 🎯 시스템 개요
-
-### **핵심 기능:**
-1. **리뷰 수집**: 사용자가 리뷰 작성 시 Kafka로 로그 전송
-2. **실시간 분석**: Python이 Kafka에서 로그를 수집하여 감성 분석 (긍정/부정/중립)
-3. **작가 인사이트**: 작가는 자기 소설에 대한 독자 반응을 실시간으로 확인 가능
-4. **배치 집계**: Spring Batch로 일일 통계 자동 집계
-
-### **기술 스택:**
-- **Backend**: Spring Boot 3 + Kotlin, JPA, Security(JWT), Kafka Producer
-- **Infra**: Docker Compose (MySQL, Redis, RabbitMQ, Kafka, Zookeeper)
-- **Analysis**: Python (FastAPI, Kafka Consumer, 감성 분석)
-- **Batch**: Spring Batch (일일 통계)
+**웹소설 플랫폼 작가를 위한 실시간 독자 반응 분석 시스템**
 
 ---
 
-## 🚀 전체 실행 방법
+## 📋 프로젝트 개요
 
-### **1단계: Git Pull**
-```bash
-cd /your/project/path/novel-insight-mvp
-git pull origin claude/moonpia-interview-prep-01HxdBgkUxxXm6XCVqVU2yxE
+독자 리뷰를 실시간으로 수집·분석하여 작가에게 데이터 기반 인사이트를 제공하는 MSA 기반 분석 플랫폼입니다.
+
+### 핵심 기능
+
+1. **실시간 감성 분석**: 리뷰 작성 시 Kafka를 통해 Python 분석 엔진으로 전달하여 긍정/부정/중립 자동 판별
+2. **작가 대시보드**: 소설별/작가별 독자 반응 통계 제공 (긍정률, 부정률, 평균 점수 등)
+3. **이벤트 스트리밍**: Kafka 기반 확장 가능한 데이터 파이프라인
+
+---
+
+## 🏗️ 시스템 아키텍처
+
+```
+[사용자] → [Spring Boot] → [Kafka] → [Python] → [MySQL]
+              ↓                          ↓
+          [RabbitMQ]                 [감성 분석]
+              ↓                          ↓
+          [작가 알림]              [통계 저장]
 ```
 
+### 기술 스택
+
+| Layer | Technology |
+|-------|------------|
+| **Backend** | Spring Boot 3, Kotlin, JPA, QueryDSL |
+| **Security** | Spring Security, JWT |
+| **Messaging** | Kafka, RabbitMQ |
+| **Analysis** | Python 3.9, FastAPI, KoNLPy (Okt) |
+| **Database** | MySQL 8.0, Redis |
+| **Infra** | Docker Compose, Zookeeper |
+| **Batch** | Spring Batch |
+
 ---
 
-### **2단계: 전체 인프라 실행 (Docker Compose)**
+## 🚀 빠른 시작
+
+### 1. 사전 요구사항
+
+- Docker Desktop (메모리 4GB 이상 권장)
+- JDK 17
+- Git
+
+### 2. 프로젝트 Clone
 
 ```bash
-# 전체 서비스 실행 (MySQL, Redis, RabbitMQ, Kafka, Zookeeper, Python)
+git clone https://github.com/parkdo0/novel-insight-mvp.git
+cd novel-insight-mvp
+git checkout claude/moonpia-interview-prep-01HxdBgkUxxXm6XCVqVU2yxE
+```
+
+### 3. 인프라 실행
+
+```bash
+# 전체 서비스 실행
 docker compose up -d
 
-# 또는 서비스별로 실행
-docker compose up -d novel-mysql novel-redis novel-rabbitmq
-docker compose up -d novel-zookeeper novel-kafka
-docker compose up -d python-service
-```
-
-**컨테이너 상태 확인:**
-```bash
+# 상태 확인
 docker compose ps
 ```
 
 **예상 출력:**
 ```
-NAME                          STATUS    PORTS
-novel-mysql-container         Up        0.0.0.0:3306->3306/tcp
-novel-redis-container         Up        0.0.0.0:6379->6379/tcp
-novel-rabbitmq-container      Up        0.0.0.0:5672->5672/tcp, 0.0.0.0:15672->15672/tcp
-novel-zookeeper-container     Up        0.0.0.0:2181->2181/tcp
-novel-kafka-container         Up        0.0.0.0:9092->9092/tcp, 0.0.0.0:29092->29092/tcp
-python-service-container      Up        0.0.0.0:8000->8000/tcp
+NAME                          STATUS
+novel-mysql-container         Up
+novel-redis-container         Up
+novel-rabbitmq-container      Up
+novel-zookeeper-container     Up
+novel-kafka-container         Up
+python-service-container      Up
 ```
 
----
-
-### **3단계: Spring Boot 실행 (IntelliJ / VS Code)**
+### 4. Spring Boot 실행
 
 ```bash
 cd novel-insight
-./gradlew clean build  # 빌드
-
-# 실행
 ./gradlew bootRun
 ```
 
-**정상 실행 로그:**
-```
-2024-12-03 14:00:00 INFO  Started NovelInsightApplicationKt in 5.0 seconds
-2024-12-03 14:00:01 INFO  Kafka Producer 준비 완료!
+### 5. 동작 확인
+
+```bash
+# 헬스 체크 (Spring Boot)
+curl http://localhost:8080/actuator/health
+
+# 헬스 체크 (Python)
+curl http://localhost:8000/health
 ```
 
 ---
 
-### **4단계: Python 로그 확인 (Kafka Consumer 동작 확인)**
+## 📡 API 명세
+
+### 리뷰 작성
 
 ```bash
-# Python 서비스 로그 실시간 확인
-docker compose logs -f python-service
-```
+POST /reviews
+Content-Type: application/json
 
-**정상 동작 로그:**
-```
-2024-12-03 14:00:05 [INFO] 🔥 Kafka Consumer 시작...
-2024-12-03 14:00:06 [INFO] ✅ Kafka Consumer 연결 성공! 메시지 대기 중...
-2024-12-03 14:00:07 [INFO] 🚀 Python 서비스 시작 완료!
-```
-
----
-
-## 🧪 전체 시스템 테스트
-
-### **시나리오: 리뷰 작성 → Kafka → Python 분석**
-
-#### **1. 회원가입**
-```bash
-curl -X POST http://localhost:8080/signup \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "author@test.com",
-    "password": "test1234!",
-    "nickname": "작가1"
-  }'
-```
-
-#### **2. 로그인 (JWT 발급)**
-```bash
-curl -X POST http://localhost:8080/login \
-  -H "Content-Type: application/json" \
-  -d '{
-    "email": "author@test.com",
-    "password": "test1234!"
-  }'
-```
-
-**응답에서 JWT 토큰 복사:**
-```
-eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
-```
-
-#### **3. 소설 생성 (DB에 직접 INSERT 또는 API 구현 필요)**
-```sql
--- MySQL에 직접 접속해서 테스트용 소설 생성
-INSERT INTO novel (title, author, author_id, view_count, created_at)
-VALUES ('테스트 소설', '작가1', 1, 0, NOW());
-```
-
-#### **4. 리뷰 작성 (Kafka로 로그 전송)**
-```bash
-curl -X POST http://localhost:8080/reviews \
-  -H "Content-Type: application/json" \
-  -d '{
-    "novelId": 1,
-    "content": "이 소설 진짜 재미있어요! 완전 최고!"
-  }'
-```
-
-#### **5. Python 로그에서 감성 분석 결과 확인**
-```bash
-docker compose logs python-service | grep "감성 분석"
-```
-
-**예상 출력:**
-```
-2024-12-03 14:05:30 [INFO] 📩 Kafka에서 메시지 수신: {'traceId': '1a2b3c4d', ...}
-2024-12-03 14:05:30 [INFO] ✨ 감성 분석 결과: {'sentiment': 'POSITIVE', 'score': 85.71, ...}
-2024-12-03 14:05:30 [INFO]    - novelId: 1
-2024-12-03 14:05:30 [INFO]    - authorId: 1
-2024-12-03 14:05:30 [INFO]    - sentiment: POSITIVE
-2024-12-03 14:05:30 [INFO]    - score: 85.71
-```
-
----
-
-## 🔍 개별 서비스 테스트
-
-### **Kafka 토픽 확인**
-```bash
-# Kafka 컨테이너 접속
-docker exec -it novel-kafka-container bash
-
-# 토픽 목록 확인
-kafka-topics --list --bootstrap-server localhost:9092
-
-# 예상 출력:
-# novel-reviews
-
-# 메시지 실시간 확인 (Consumer 테스트)
-kafka-console-consumer --bootstrap-server localhost:9092 --topic novel-reviews --from-beginning
-```
-
-### **Python 감성 분석 API 직접 호출 (테스트용)**
-```bash
-curl -X POST http://localhost:8000/analyze \
-  -H "Content-Type: application/json" \
-  -d '{
-    "text": "이 소설 너무 지루해요. 별로예요."
-  }'
-```
-
-**예상 응답:**
-```json
 {
-  "status": "SUCCESS",
-  "result": "감성: NEGATIVE, 점수: 66.67",
-  "detail": {
-    "sentiment": "NEGATIVE",
-    "score": 66.67,
-    "positive_count": 0,
-    "negative_count": 2
-  }
+  "novelId": 1,
+  "content": "이 소설 정말 재미있어요!"
+}
+```
+
+**처리 흐름:**
+1. DB에 리뷰 저장
+2. RabbitMQ로 작가 알림 전송
+3. Kafka로 로그 전송
+4. Python이 감성 분석 후 MySQL에 저장
+
+### 작가 인사이트 조회
+
+```bash
+# 소설별 통계
+GET /api/insights/novels/{novelId}
+
+# 응답 예시
+{
+  "novelId": 1,
+  "totalReviews": 150,
+  "positiveRate": 68.7,
+  "negativeRate": 18.0,
+  "neutralRate": 13.3,
+  "avgScore": 72.5,
+  "recentReviews": [...]
+}
+```
+
+```bash
+# 작가별 통계
+GET /api/insights/authors/{authorId}
+
+{
+  "authorId": 1,
+  "totalReviews": 500,
+  "avgScore": 75.2
 }
 ```
 
 ---
 
-## 📊 Spring Batch 실행 (일일 통계 집계)
+## 🧪 테스트 시나리오
+
+### 전체 플로우 테스트
 
 ```bash
-# Batch Job 수동 실행 (테스트용)
-curl -X POST http://localhost:8080/batch/statistics
+# 1. 회원가입
+curl -X POST http://localhost:8080/signup \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@test.com","password":"test1234!","nickname":"작가1"}'
+
+# 2. 로그인
+curl -X POST http://localhost:8080/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"test@test.com","password":"test1234!"}'
+
+# 3. 리뷰 작성
+curl -X POST http://localhost:8080/reviews \
+  -H "Content-Type: application/json" \
+  -d '{"novelId":1,"content":"완전 재미있어요!"}'
+
+# 4. Python 로그 확인 (감성 분석 결과)
+docker compose logs -f python-service | grep "분석 완료"
+
+# 5. 통계 조회
+curl http://localhost:8080/api/insights/novels/1
 ```
+
+---
+
+## 🔧 개발 가이드
+
+### Python 감성 분석 엔진
+
+**파일 구조:**
+```
+python-service/
+├── config.py             # 환경 설정
+├── sentiment_analyzer.py # KoNLPy 기반 감성 분석
+├── database.py           # MySQL 연동
+└── main.py               # FastAPI + Kafka Consumer
+```
+
+**감성 분석 로직:**
+- KoNLPy Okt로 형태소 분석
+- 감성 사전 기반 긍정/부정 단어 추출
+- 점수 계산 후 POSITIVE/NEGATIVE/NEUTRAL 판별
+
+### Spring Boot 구조
+
+```
+src/main/kotlin/com/sparta/novel_insight/
+├── controller/
+│   ├── ReviewController.kt      # 리뷰 API
+│   └── InsightController.kt     # 인사이트 API
+├── service/
+│   ├── KafkaProducerService.kt  # Kafka 전송
+│   └── InsightService.kt        # 통계 조회
+├── domain/
+│   └── ReviewAnalysis.kt        # 분석 결과 Entity
+└── repository/
+    └── ReviewAnalysisRepository.kt
+```
+
+---
+
+## 📊 모니터링
+
+### Kafka 토픽 확인
+
+```bash
+docker exec -it novel-kafka-container kafka-topics \
+  --list --bootstrap-server localhost:9092
+```
+
+### Python 로그 실시간 확인
+
+```bash
+docker compose logs -f python-service
+```
+
+### RabbitMQ 관리 페이지
+
+http://localhost:15672 (guest/guest)
 
 ---
 
 ## ⚠️ 문제 해결
 
-### **1. Kafka 접속 실패 (Connection refused)**
+### Kafka 연결 실패
+
 ```bash
 # Kafka 재시작
 docker compose restart novel-kafka
 
 # 로그 확인
-docker compose logs novel-kafka | grep "started"
+docker compose logs novel-kafka
 ```
 
-### **2. Python Kafka Consumer 연결 안 됨**
+### Python 분석 안 됨
+
 ```bash
-# Python 컨테이너 재시작
+# Python 재시작
 docker compose restart python-service
 
-# 네트워크 확인
-docker network inspect novel-insight-mvp_novel-net
+# 로그 확인
+docker compose logs python-service
 ```
 
-### **3. MySQL 접속 실패**
+### MySQL 테이블 확인
+
 ```bash
-# MySQL 접속 테스트
 docker exec -it novel-mysql-container mysql -u novel_user -p
 # 비밀번호: novel1234!
+
+USE novel_insight;
+SHOW TABLES;
+SELECT * FROM review_analysis LIMIT 10;
 ```
 
 ---
 
-## 🎓 학습 포인트
+## 📈 확장 가능성
 
-### **1. Kafka vs RabbitMQ 차이 체험**
-- **RabbitMQ**: 알림 전송 (읽으면 삭제)
-- **Kafka**: 로그 수집 (7일간 보관, 여러 Consumer가 읽기 가능)
-
-### **2. MSA 통신 패턴**
-- **동기 (Feign)**: Spring ↔ Python (분석 API 호출)
-- **비동기 (Kafka)**: Spring → Kafka → Python (이벤트 스트리밍)
-
-### **3. 실시간 데이터 파이프라인**
-```
-사용자 리뷰 작성
-  ↓
-Spring Boot (Producer)
-  ↓
-Kafka (메시지 저장)
-  ↓
-Python (Consumer + 감성 분석)
-  ↓
-작가에게 인사이트 제공
-```
+1. **Kafka 파티셔닝**: 소설 ID 기반 파티션 분산으로 처리 속도 향상
+2. **ML 모델 적용**: BERT 기반 한국어 감성 분석 모델로 정확도 개선
+3. **실시간 대시보드**: Grafana + Prometheus로 메트릭 시각화
+4. **작가 알림**: WebSocket 기반 실시간 알림
 
 ---
 
-## 📝 다음 단계 (Optional)
+## 📝 라이센스
 
-1. **MySQL에 분석 결과 저장** (Python에서 INSERT)
-2. **작가 대시보드 API** (Spring Boot에서 통계 조회)
-3. **Kafka 파티션 분산** (처리 속도 향상)
-4. **KoNLPy 실전 적용** (Okt 형태소 분석기)
-5. **Grafana 대시보드** (실시간 모니터링)
+MIT License
 
 ---
 
-## 🚨 주의사항
-
-1. **Kafka는 메모리를 많이 사용**하므로 Docker Desktop 메모리를 최소 4GB 이상 할당하세요.
-2. **로컬 환경에서 포트 충돌** 주의 (3306, 6379, 5672, 9092, 8000, 8080)
-3. **Production 환경**에서는 반드시 `.env` 파일로 비밀번호 관리!
-
----
-
-## 📚 참고 자료
-
-- [Kafka 공식 문서](https://kafka.apache.org/documentation/)
-- [Spring Kafka](https://docs.spring.io/spring-kafka/reference/html/)
-- [KoNLPy 한국어 NLP](https://konlpy.org/)
-
----
-
-**면접 준비 완료! 화이팅! 🔥**
+**개발자:** 박도영
+**목적:** 문피아 면접 대비 프로젝트
