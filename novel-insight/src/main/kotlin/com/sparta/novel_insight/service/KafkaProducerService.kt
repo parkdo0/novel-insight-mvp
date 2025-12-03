@@ -4,28 +4,27 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import org.slf4j.LoggerFactory
 import org.slf4j.MDC
 import org.springframework.kafka.core.KafkaTemplate
+import org.springframework.kafka.support.SendResult
 import org.springframework.stereotype.Service
+import java.util.concurrent.CompletableFuture
 
 /**
- * Kafka Producer 서비스
- * 리뷰/로그 데이터를 Kafka로 전송
+ * Kafka Producer
+ * 리뷰 로그를 Kafka로 비동기 전송
  */
 @Service
 class KafkaProducerService(
     private val kafkaTemplate: KafkaTemplate<String, String>,
     private val objectMapper: ObjectMapper
 ) {
-    private val log = LoggerFactory.getLogger(KafkaProducerService::class.java)
+    private val log = LoggerFactory.getLogger(javaClass)
 
     companion object {
-        const val REVIEW_TOPIC = "novel-reviews"  // 리뷰 로그 토픽
+        const val REVIEW_TOPIC = "novel-reviews"
     }
 
     /**
-     * 리뷰 로그를 Kafka로 전송
-     * @param novelId 소설 ID
-     * @param authorId 작가 ID
-     * @param reviewContent 리뷰 내용
+     * 리뷰 로그 전송 (비동기)
      */
     fun sendReviewLog(novelId: Long, authorId: Long, reviewContent: String) {
         val traceId = MDC.get("traceId") ?: "NO-TRACE"
@@ -39,16 +38,20 @@ class KafkaProducerService(
         )
 
         try {
-            // JSON으로 변환
             val jsonLog = objectMapper.writeValueAsString(logData)
 
-            // Kafka로 전송 (Key: novelId, Value: JSON)
-            kafkaTemplate.send(REVIEW_TOPIC, novelId.toString(), jsonLog)
+            val future: CompletableFuture<SendResult<String, String>> =
+                kafkaTemplate.send(REVIEW_TOPIC, novelId.toString(), jsonLog)
 
-            log.info("📤 Kafka로 리뷰 로그 전송 완료: novelId=$novelId, traceId=$traceId")
+            future.whenComplete { result, ex ->
+                if (ex == null) {
+                    log.info("✅ Kafka 전송 성공: novelId=$novelId, offset=${result.recordMetadata.offset()}")
+                } else {
+                    log.error("❌ Kafka 전송 실패: novelId=$novelId", ex)
+                }
+            }
         } catch (e: Exception) {
-            log.error("❌ Kafka 전송 실패: ${e.message}", e)
-            // ★ 중요: Kafka 장애 시에도 서비스는 정상 동작해야 함 (예외를 던지지 않음)
+            log.error("❌ Kafka 전송 중 예외 발생: novelId=$novelId", e)
         }
     }
 }
