@@ -34,6 +34,7 @@ dependencies {
     implementation("org.redisson:redisson-spring-boot-starter:3.34.1")
     implementation("org.springframework.boot:spring-boot-starter-amqp")
     implementation("org.springframework.boot:spring-boot-starter-actuator")
+    implementation("org.springframework.kafka:spring-kafka") // ★ Kafka 추가!
     implementation("com.querydsl:querydsl-jpa:5.0.0:jakarta")
     implementation("org.springframework.boot:spring-boot-starter-batch")
     implementation("org.springframework.cloud:spring-cloud-starter-openfeign")

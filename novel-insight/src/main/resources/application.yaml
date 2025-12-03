@@ -31,6 +31,21 @@ spring:
     compatibility-verifier:
       enabled: false
 
+  # ========================================
+  # ★★★ Kafka 설정 (로그 파이프라인) ★★★
+  # ========================================
+  kafka:
+    bootstrap-servers: localhost:9092  # Kafka 브로커 주소
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+      acks: all  # 모든 복제본이 메시지를 받았을 때만 성공 (안정성 최대)
+    consumer:
+      group-id: novel-insight-group
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest  # 처음부터 읽기
+
 jwt:
   secret: "v3rY-s3cr3t-k3y-f0r-n0v3l-1ns1ght-mvp-pr0j3ct-mUst-b3-l0ng" # 32글자 이상 길게!
   issuer: "novel-insight"
