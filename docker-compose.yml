@@ -95,6 +95,21 @@ services:
     networks:
       - novel-net  # ← MySQL, Redis, RabbitMQ와 같은 네트워크 (서로 통신 가능!)
 
+  # ========================================
+  # ★★★ Python 분석 서비스 (Kafka Consumer + 감성 분석) ★★★
+  # ========================================
+  python-service:
+    build: ./python-service  # Dockerfile 위치
+    container_name: python-service-container
+    ports:
+      - "8000:8000"  # FastAPI 포트
+    depends_on:
+      - novel-kafka  # Kafka가 먼저 떠야 Consumer가 연결 가능
+    networks:
+      - novel-net
+    environment:
+      - PYTHONUNBUFFERED=1  # 로그 즉시 출력
+
 networks:
   novel-net:
     driver: bridge

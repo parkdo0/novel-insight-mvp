@@ -7,6 +7,7 @@ import com.sparta.novel_insight.repository.NovelRepository
 import com.sparta.novel_insight.repository.ReviewRepository
 import com.sparta.novel_insight.service.NotificationService
 import com.sparta.novel_insight.service.RabbitProducer
+import com.sparta.novel_insight.service.KafkaProducerService
 import org.apache.commons.text.StringEscapeUtils // ★ 이 녀석이 핵심!
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
@@ -18,7 +19,8 @@ class ReviewController(
     private val reviewRepository: ReviewRepository,
     private val novelRepository: NovelRepository,
     private val notificationService: NotificationService, // 1. 주입
-    private val rabbitProducer: RabbitProducer
+    private val rabbitProducer: RabbitProducer,
+    private val kafkaProducerService: KafkaProducerService // ★ Kafka Producer 추가!
 ) {
 
     @PostMapping("/reviews")
@@ -38,11 +40,16 @@ class ReviewController(
 
         reviewRepository.save(review)
 
-        // ★★★ [범인] 여기서 발목이 잡힙니다.
-        // 알림이 다 갈 때까지 사용자는 3초 동안 로딩 바만 보고 있어야 합니다.
-        // ★★★ [수정] 3초 걸리던 로직 삭제 -> 0.01초 걸리는 큐 전송으로 대체
-        // notificationService.sendToAuthor() (삭제)
+        // ★★★ [RabbitMQ] 작가 알림 전송 (비동기)
         rabbitProducer.sendNotification("새 리뷰가 달렸습니다: ${safeContent}")
+
+        // ★★★ [Kafka] 리뷰 로그를 Kafka로 전송 (데이터 분석용)
+        kafkaProducerService.sendReviewLog(
+            novelId = novel.id!!,
+            authorId = novel.authorId,
+            reviewContent = safeContent
+        )
+
         // ★ [Entity 은닉] DTO로 변환해서 리턴
         return ResponseEntity.ok(ReviewResponse.from(review))
     }
