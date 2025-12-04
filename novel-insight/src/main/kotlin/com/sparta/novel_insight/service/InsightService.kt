@@ -7,6 +7,8 @@ import com.sparta.novel_insight.repository.ReviewAnalysisRepository
 // Spring의 @Service 어노테이션
 // 이 클래스가 비즈니스 로직을 담당하는 서비스 계층임을 나타냄
 import org.springframework.stereotype.Service
+// Transactional 어노테이션: 트랜잭션 관리
+import org.springframework.transaction.annotation.Transactional
 // Kotlin 표준 라이브러리의 수학 함수
 // round(): 반올림 함수
 import kotlin.math.round
@@ -70,6 +72,15 @@ class InsightService(
      * 특정 소설에 대한 독자 리뷰의 감성 분석 결과를 집계하여
      * 작가 대시보드에 표시할 통계 정보를 반환합니다.
      *
+     * @Transactional(readOnly = true): 읽기 전용 트랜잭션
+     * - 목적: 조회 성능 최적화
+     * - 효과:
+     *   1. Dirty Checking 비활성화 → 메모리 절약
+     *   2. flush 모드를 MANUAL로 변경 → 불필요한 flush 방지
+     *   3. DB에 읽기 힌트 전달 → 일부 DB는 읽기 최적화 적용
+     * - 주의: readOnly = true인 트랜잭션 내에서 INSERT/UPDATE/DELETE 시도 시
+     *   TransactionSystemException 발생
+     *
      * 처리 흐름:
      * 1. Repository에서 집계 쿼리 실행 (JPQL)
      * 2. 결과가 없으면 기본값 반환 (모든 값 0)
@@ -82,6 +93,7 @@ class InsightService(
      * @param novelId 조회할 소설의 ID
      * @return NovelInsightResponse 소설 감성 분석 통계 DTO
      */
+    @Transactional(readOnly = true)  // 읽기 전용 최적화
     fun getNovelInsight(novelId: Long): NovelInsightResponse {
         // 1단계: Repository에서 통계 데이터 조회
         // getStatisticsByNovelId()는 Array<Any>? 타입 반환 (Nullable)
@@ -173,6 +185,9 @@ class InsightService(
      * 특정 작가의 모든 소설에 대한 감성 분석 통계를 집계합니다.
      * 소설별로 구분하지 않고 작가 단위로 합산된 정보를 제공합니다.
      *
+     * @Transactional(readOnly = true): 읽기 전용 트랜잭션
+     * - 조회 성능 최적화 (Dirty Checking 비활성화)
+     *
      * 처리 흐름:
      * 1. Repository에서 집계 쿼리 실행
      * 2. 결과가 없으면 기본값 반환
@@ -187,6 +202,7 @@ class InsightService(
      * @param authorId 조회할 작가의 ID
      * @return AuthorInsightResponse 작가 전체 통계 DTO
      */
+    @Transactional(readOnly = true)  // 읽기 전용 최적화
     fun getAuthorInsight(authorId: Long): AuthorInsightResponse {
         // Repository에서 작가별 통계 조회
         // null일 경우 기본값 반환 (Early return 패턴)
