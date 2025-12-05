@@ -9,60 +9,58 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import kotlin.random.Random
 
-/**
- * # MockDataGeneratorService
- *
- * 테스트 및 데모용 Mock 데이터 생성 서비스입니다.
- *
- * ## WHY Mock 데이터가 필요한가?
- *
- * ### 문제: 실제 데이터가 부족
- * - 회원 수 적음 → 통계 신뢰도 낮음
- * - 소설만 많고 에피소드/리뷰 부족 → 대시보드 텅 빔
- * - 읽기 로그 없음 → Phase 6 기능 테스트 불가
- * - 다양한 패턴 부족 → 엣지 케이스 검증 불가
- *
- * ### 해결: 실무 시나리오 Mock 데이터
- * - **현실적인 분포**: 인기 소설 vs 일반 소설
- * - **다양한 패턴**: 완독, 중간 이탈, 초반 이탈
- * - **시계열 데이터**: 최근 30일간의 트렌드
- * - **대용량 데이터**: 성능 벤치마크용
- *
- * ## 생성 데이터
- *
- * ### 1. Member (회원)
- * - 작가 50명: 활발한 작가 20명, 일반 작가 30명
- * - 독자 1000명: 열성 독자 200명, 일반 독자 800명
- *
- * ### 2. Novel (소설)
- * - 150편: 인기 소설 30편, 일반 소설 120편
- * - 장르: 판타지, 로맨스, 무협, 현대물 등
- *
- * ### 3. Episode (에피소드)
- * - 소설당 20-50개 (총 ~5,000개)
- * - 인기 소설은 에피소드 많음
- *
- * ### 4. Review (리뷰)
- * - 50,000개: 다양한 감성 (긍정 60%, 부정 20%, 중립 20%)
- * - ReviewAnalysis도 함께 생성
- *
- * ### 5. EpisodeReadLog (읽기 로그)
- * - 500,000개: 최근 30일간
- * - 패턴: 완독(40%), 중간 이탈(30%), 초반 이탈(30%)
- * - 디바이스: Mobile(60%), Desktop(30%), Tablet(10%)
- *
- * ## 사용 예시
- *
- * ```bash
- * # 전체 Mock 데이터 생성
- * POST /api/mock/generate-all
- *
- * # 특정 데이터만 생성
- * POST /api/mock/generate-members?count=100
- * POST /api/mock/generate-novels?count=50
- * POST /api/mock/generate-read-logs?count=10000
- * ```
- */
+// # MockDataGeneratorService
+//
+// 테스트 및 데모용 Mock 데이터 생성 서비스입니다.
+//
+// ## WHY Mock 데이터가 필요한가?
+//
+// ### 문제: 실제 데이터가 부족
+// - 회원 수 적음 → 통계 신뢰도 낮음
+// - 소설만 많고 에피소드/리뷰 부족 → 대시보드 텅 빔
+// - 읽기 로그 없음 → Phase 6 기능 테스트 불가
+// - 다양한 패턴 부족 → 엣지 케이스 검증 불가
+//
+// ### 해결: 실무 시나리오 Mock 데이터
+// - **현실적인 분포**: 인기 소설 vs 일반 소설
+// - **다양한 패턴**: 완독, 중간 이탈, 초반 이탈
+// - **시계열 데이터**: 최근 30일간의 트렌드
+// - **대용량 데이터**: 성능 벤치마크용
+//
+// ## 생성 데이터
+//
+// ### 1. Member (회원)
+// - 작가 50명: 활발한 작가 20명, 일반 작가 30명
+// - 독자 1000명: 열성 독자 200명, 일반 독자 800명
+//
+// ### 2. Novel (소설)
+// - 150편: 인기 소설 30편, 일반 소설 120편
+// - 장르: 판타지, 로맨스, 무협, 현대물 등
+//
+// ### 3. Episode (에피소드)
+// - 소설당 20-50개 (총 ~5,000개)
+// - 인기 소설은 에피소드 많음
+//
+// ### 4. Review (리뷰)
+// - 50,000개: 다양한 감성 (긍정 60%, 부정 20%, 중립 20%)
+// - ReviewAnalysis도 함께 생성
+//
+// ### 5. EpisodeReadLog (읽기 로그)
+// - 500,000개: 최근 30일간
+// - 패턴: 완독(40%), 중간 이탈(30%), 초반 이탈(30%)
+// - 디바이스: Mobile(60%), Desktop(30%), Tablet(10%)
+//
+// ## 사용 예시
+//
+// ```bash
+// # 전체 Mock 데이터 생성
+// POST /api/mock/generate-all
+//
+// # 특정 데이터만 생성
+// POST /api/mock/generate-members?count=100
+// POST /api/mock/generate-novels?count=50
+// POST /api/mock/generate-read-logs?count=10000
+// ```
 @Service
 class MockDataGeneratorService(
     private val memberRepository: MemberRepository,
@@ -155,20 +153,18 @@ class MockDataGeneratorService(
         )
     }
 
-    /**
-     * 전체 Mock 데이터 생성
-     *
-     * ## 실행 순서 (FK 제약조건 고려)
-     *
-     * 1. Member 생성 (작가 + 독자)
-     * 2. Novel 생성 (FK: authorId)
-     * 3. Episode 생성 (FK: novelId)
-     * 4. Review + ReviewAnalysis 생성 (FK: userId, novelId)
-     * 5. EpisodeReadLog 생성 (FK: userId, episodeId, novelId)
-     *
-     * @param clearExisting 기존 데이터 삭제 여부
-     * @return 생성된 데이터 개수 요약
-     */
+    // 전체 Mock 데이터 생성
+    //
+    // ## 실행 순서 (FK 제약조건 고려)
+    //
+    // 1. Member 생성 (작가 + 독자)
+    // 2. Novel 생성 (FK: authorId)
+    // 3. Episode 생성 (FK: novelId)
+    // 4. Review + ReviewAnalysis 생성 (FK: userId, novelId)
+    // 5. EpisodeReadLog 생성 (FK: userId, episodeId, novelId)
+    //
+    // @param clearExisting 기존 데이터 삭제 여부
+    // @return 생성된 데이터 개수 요약
     @Transactional
     fun generateAllMockData(clearExisting: Boolean = false): MockDataSummary {
         if (clearExisting) {
@@ -190,12 +186,10 @@ class MockDataGeneratorService(
         )
     }
 
-    /**
-     * 기존 데이터 전체 삭제
-     *
-     * WHY 순서가 중요?
-     * - FK 제약조건 역순으로 삭제해야 함
-     */
+    // 기존 데이터 전체 삭제
+    //
+    // WHY 순서가 중요?
+    // - FK 제약조건 역순으로 삭제해야 함
     @Transactional
     fun clearAllData() {
         episodeReadLogRepository.deleteAll()
@@ -206,13 +200,11 @@ class MockDataGeneratorService(
         memberRepository.deleteAll()
     }
 
-    /**
-     * 회원 데이터 생성
-     *
-     * @param authorCount 작가 수
-     * @param readerCount 독자 수
-     * @return 생성된 회원 리스트
-     */
+    // 회원 데이터 생성
+    //
+    // @param authorCount 작가 수
+    // @param readerCount 독자 수
+    // @return 생성된 회원 리스트
     @Transactional
     fun generateMembers(authorCount: Int = 50, readerCount: Int = 1000): List<Member> {
         val members = mutableListOf<Member>()
@@ -244,13 +236,11 @@ class MockDataGeneratorService(
         return memberRepository.saveAll(members)
     }
 
-    /**
-     * 소설 데이터 생성
-     *
-     * @param count 소설 수
-     * @param authors 작가 리스트
-     * @return 생성된 소설 리스트
-     */
+    // 소설 데이터 생성
+    //
+    // @param count 소설 수
+    // @param authors 작가 리스트
+    // @return 생성된 소설 리스트
     @Transactional
     fun generateNovels(count: Int = 150, authors: List<Member>): List<Novel> {
         val novels = mutableListOf<Novel>()
@@ -272,14 +262,12 @@ class MockDataGeneratorService(
         return novelRepository.saveAll(novels)
     }
 
-    /**
-     * 에피소드 데이터 생성
-     *
-     * 인기 소설은 에피소드가 많고, 일반 소설은 적음
-     *
-     * @param novels 소설 리스트
-     * @return 생성된 에피소드 리스트
-     */
+    // 에피소드 데이터 생성
+    //
+    // 인기 소설은 에피소드가 많고, 일반 소설은 적음
+    //
+    // @param novels 소설 리스트
+    // @return 생성된 에피소드 리스트
     @Transactional
     fun generateEpisodes(novels: List<Novel>): List<Episode> {
         val episodes = mutableListOf<Episode>()
@@ -305,14 +293,12 @@ class MockDataGeneratorService(
         return episodeRepository.saveAll(episodes)
     }
 
-    /**
-     * 리뷰 데이터 생성 (ReviewAnalysis도 함께 생성)
-     *
-     * @param count 리뷰 수
-     * @param readers 독자 리스트
-     * @param novels 소설 리스트
-     * @return 생성된 리뷰 리스트
-     */
+    // 리뷰 데이터 생성 (ReviewAnalysis도 함께 생성)
+    //
+    // @param count 리뷰 수
+    // @param readers 독자 리스트
+    // @param novels 소설 리스트
+    // @return 생성된 리뷰 리스트
     @Transactional
     fun generateReviews(count: Int = 50000, readers: List<Member>, novels: List<Novel>): List<Review> {
         val reviews = mutableListOf<Review>()
@@ -382,21 +368,19 @@ class MockDataGeneratorService(
         return reviewRepository.findAll().toList()
     }
 
-    /**
-     * 읽기 로그 데이터 생성 (Phase 6)
-     *
-     * ## 현실적인 패턴 생성
-     *
-     * 1. **완독 (40%)**: 90-100% 스크롤
-     * 2. **중간 이탈 (30%)**: 40-80% 스크롤
-     * 3. **초반 이탈 (30%)**: 5-30% 스크롤
-     *
-     * @param count 로그 수
-     * @param readers 독자 리스트
-     * @param episodes 에피소드 리스트
-     * @param days 최근 N일간 데이터
-     * @return 생성된 로그 리스트
-     */
+    // 읽기 로그 데이터 생성 (Phase 6)
+    //
+    // ## 현실적인 패턴 생성
+    //
+    // 1. **완독 (40%)**: 90-100% 스크롤
+    // 2. **중간 이탈 (30%)**: 40-80% 스크롤
+    // 3. **초반 이탈 (30%)**: 5-30% 스크롤
+    //
+    // @param count 로그 수
+    // @param readers 독자 리스트
+    // @param episodes 에피소드 리스트
+    // @param days 최근 N일간 데이터
+    // @return 생성된 로그 리스트
     @Transactional
     fun generateReadLogs(
         count: Int = 500000,
@@ -502,9 +486,7 @@ class MockDataGeneratorService(
     }
 }
 
-/**
- * Mock 데이터 생성 요약
- */
+// Mock 데이터 생성 요약
 data class MockDataSummary(
     val members: Int,
     val novels: Int,
@@ -513,9 +495,7 @@ data class MockDataSummary(
     val readLogs: Int
 )
 
-/**
- * Member 임시 도메인 (실제 프로젝트에 맞게 수정 필요)
- */
+// Member 임시 도메인 (실제 프로젝트에 맞게 수정 필요)
 enum class MemberRole {
     AUTHOR, READER
 }
