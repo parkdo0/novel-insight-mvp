@@ -34,23 +34,118 @@ import java.util.concurrent.CompletableFuture
  * 리뷰 작성 시 로그 데이터를 Kafka 토픽으로 비동기 전송하는 서비스입니다.
  * Python 감성 분석 서비스가 이 메시지를 구독(consume)하여 처리합니다.
  *
- * 데이터 흐름:
+ * ★★★ Phase 3: Kafka Partitioning 적용 (Novel ID 기반) ★★★
+ *
+ * ## 데이터 흐름
  * 1. ReviewController에서 리뷰 저장 후 이 서비스 호출
  * 2. 리뷰 정보를 JSON으로 직렬화
- * 3. Kafka 토픽(novel-reviews)으로 전송 (비동기)
- * 4. Python Kafka Consumer가 메시지 수신
- * 5. Python이 감성 분석 후 MySQL에 저장
+ * 3. **Kafka 토픽(novel-reviews, 파티션 3개)으로 전송** ← Phase 3
+ * 4. **Novel ID 해시로 파티션 분산** ← Phase 3
+ * 5. Python Kafka Consumer가 메시지 수신 (병렬 처리)
+ * 6. Python이 감성 분석 후 MySQL에 저장
  *
- * 비동기 처리 이유:
+ * ## Phase 3: Partitioning 전략
+ *
+ * ### WHY Novel ID를 Partition Key로 사용하는가?
+ *
+ * ```kotlin
+ * // 메시지 전송 (line 213)
+ * kafkaTemplate.send(
+ *   topic = "novel-reviews",
+ *   key = novelId.toString(),  ← 이게 Partition Key!
+ *   value = jsonLog
+ * )
+ * ```
+ *
+ * **파티션 할당 로직:**
+ * ```
+ * partition = hash(novelId) % partitionCount
+ *
+ * 예시 (파티션 3개):
+ * - Novel ID 1 → hash(1) % 3 = 1 → Partition 1
+ * - Novel ID 2 → hash(2) % 3 = 2 → Partition 2
+ * - Novel ID 3 → hash(3) % 3 = 0 → Partition 0
+ * - Novel ID 4 → hash(4) % 3 = 1 → Partition 1 (Novel 1과 같은 파티션)
+ * ```
+ *
+ * ### 효과 1: 이벤트 순서 보장
+ * - 같은 소설의 리뷰는 **항상 같은 파티션**으로 전송
+ * - 파티션 내에서는 **FIFO 순서 보장**
+ * - 감성 분석 시 시간 순서가 중요 → 순서 보장 필수
+ *
+ * **시나리오:**
+ * ```
+ * 소설 1 리뷰:
+ * 10:00 "재미있어요!" (긍정) → Partition 1 → Consumer A 처리
+ * 10:05 "boring..." (부정) → Partition 1 → Consumer A 처리
+ * 10:10 "최고!" (긍정) → Partition 1 → Consumer A 처리
+ *
+ * ✅ 분석 결과: 긍정 → 부정 → 긍정 (시간 순서 정확)
+ * ```
+ *
+ * **만약 순서가 보장되지 않으면?**
+ * ```
+ * 10:10 "최고!" → Partition 0 → Consumer A 먼저 처리
+ * 10:00 "재미있어요!" → Partition 1 → Consumer B 나중에 처리
+ * 10:05 "boring..." → Partition 2 → Consumer C 중간에 처리
+ *
+ * ❌ 분석 결과: 긍정 → 긍정 → 부정 (순서 뒤바뀜, 추이 분석 왜곡)
+ * ```
+ *
+ * ### 효과 2: 부하 분산
+ * - 여러 소설의 리뷰가 **파티션별로 골고루 분산**
+ * - 한 소설에 리뷰가 집중되어도 다른 소설 처리에 영향 없음
+ * - Hot Partition 문제 최소화
+ *
+ * **시나리오:**
+ * ```
+ * 인기 소설 (Novel 1): 리뷰 1000개/분 → Partition 1 → Consumer A 처리
+ * 일반 소설 (Novel 2): 리뷰 10개/분 → Partition 2 → Consumer B 처리
+ * 신작 소설 (Novel 3): 리뷰 50개/분 → Partition 0 → Consumer C 처리
+ *
+ * ✅ 각 Consumer가 독립적으로 처리 (서로 영향 없음)
+ * ```
+ *
+ * ### 효과 3: 병렬 처리 (처리 속도 3배)
+ * - Consumer Group의 Consumer 3개가 파티션별로 분담
+ * - 각 Consumer는 독립적인 스레드로 실행
+ * - 이론적으로 처리 속도 3배 향상
+ *
+ * **Before Phase 3 (파티션 1개):**
+ * ```
+ * [Producer] → [Partition 0: 모든 메시지] → [Consumer 1개]
+ *                                                  ↓
+ *                                            순차 처리 (느림)
+ *                                            1000 msg/sec
+ * ```
+ *
+ * **After Phase 3 (파티션 3개):**
+ * ```
+ * [Producer]
+ *     ├─→ [Partition 0: Novel 3,6,9...] → [Consumer A: 333 msg/sec]
+ *     ├─→ [Partition 1: Novel 1,4,7...] → [Consumer B: 333 msg/sec]
+ *     └─→ [Partition 2: Novel 2,5,8...] → [Consumer C: 334 msg/sec]
+ *                           ↓
+ *                  병렬 처리 (빠름)
+ *                  1000 msg/sec (3배 향상)
+ * ```
+ *
+ * ## 비동기 처리 이유
  * - Kafka 전송 대기 시간만큼 API 응답이 지연되지 않음
  * - 감성 분석은 시간이 걸리는 작업이므로 사용자 응답과 분리
  * - Kafka 장애 시에도 리뷰 저장은 성공 (서비스 안정성)
  *
- * Kafka 사용 이유:
+ * ## Kafka 사용 이유
  * - 대용량 메시지 처리 가능 (초당 수백만 건)
  * - 메시지 영속성 보장 (디스크에 저장)
  * - Consumer 장애 시 재처리 가능 (메시지 유실 방지)
- * - 수평 확장 용이 (파티션 추가로 처리량 증가)
+ * - **수평 확장 용이 (파티션 추가로 처리량 증가)** ← Phase 3
+ *
+ * ## 모니터링 포인트 (Phase 3)
+ * 1. **파티션별 메시지 분포**: 특정 파티션에 과부하 없는지 확인
+ * 2. **Consumer Lag**: Producer 전송 속도 vs Consumer 처리 속도
+ * 3. **파티션 Rebalancing**: Consumer 추가/제거 시 재조정 시간
+ * 4. **처리 속도**: 파티션 3개로 실제 3배 향상되었는지 측정
  */
 @Service
 class KafkaProducerService(

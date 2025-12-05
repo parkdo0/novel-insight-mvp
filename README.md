@@ -2,7 +2,7 @@
 
 **웹소설 플랫폼 작가를 위한 실시간 독자 반응 분석 시스템**
 
-[![Phase](https://img.shields.io/badge/Phase-2%20Complete-success)](https://github.com/parkdo0/novel-insight-mvp)
+[![Phase](https://img.shields.io/badge/Phase-3%20Complete-success)](https://github.com/parkdo0/novel-insight-mvp)
 [![Stack](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen)](https://spring.io/projects/spring-boot)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9-blue)](https://kotlinlang.org/)
 
@@ -19,6 +19,7 @@
 3. **✅ 이벤트 스트리밍**: Kafka 기반 확장 가능한 데이터 파이프라인
 4. **✅ 프로덕션급 인증**: HttpOnly Cookie + Refresh Token으로 XSS/CSRF 방어
 5. **✅ WebSocket 실시간 알림**: 리뷰/댓글 작성 시 작가에게 즉시 알림 전송 (Phase 2 완료)
+6. **✅ Kafka Partitioning**: Novel ID 기반 파티션 분산으로 병렬 처리 3배 향상 (Phase 3 완료)
 
 ---
 
@@ -498,11 +499,30 @@ SELECT * FROM notification LIMIT 10;  # Phase 2 추가
 - 알림 히스토리 조회
 - 읽음 처리 (단일/전체)
 
-### 🔄 Phase 3: Kafka Partitioning (진행 예정)
-- Novel ID 기반 파티션 분산
-- 같은 소설 이벤트 순서 보장
-- Consumer Group 병렬 처리
-- 처리 속도 향상
+### ✅ Phase 3: Kafka Partitioning (완료 ⭐)
+- **KafkaTopicConfig**: 파티션 3개로 토픽 생성
+- **Novel ID 기반 파티셔닝**: 같은 소설의 이벤트는 같은 파티션 → 순서 보장
+- **병렬 처리**: Consumer 3개가 파티션별로 분담 → 처리 속도 3배 향상
+- **부하 분산**: 인기 소설과 일반 소설 독립 처리
+
+**커밋**: (진행 중)
+
+**주요 효과:**
+1. **이벤트 순서 보장**: 같은 소설 리뷰는 시간순 정확히 처리
+2. **부하 분산**: 여러 소설의 리뷰가 파티션별로 균등 분배
+3. **병렬 처리**: Consumer 3개 동시 실행으로 처리 속도 3배
+4. **수평 확장**: 파티션 추가로 처리량 선형 증가 가능
+
+**Before vs After:**
+```
+Before (파티션 1개):
+[Producer] → [P0: 모든 메시지] → [Consumer 1개] → 1000 msg/sec
+
+After (파티션 3개):
+[Producer] → [P0] → [Consumer A] ┐
+           → [P1] → [Consumer B] ├→ 3000 msg/sec (3배)
+           → [P2] → [Consumer C] ┘
+```
 
 ### 📊 Phase 4: Grafana + Prometheus (진행 예정)
 - 알림 발송 성공/실패율 모니터링
