@@ -183,48 +183,56 @@ services:
       retries: 5
 
   # ===================================
-  # Python 분석 서비스 (FastAPI + KoNLPy)
+  # Python 분석 서비스 (FastAPI + KoNLPy + BERT) - Phase 5
   # ===================================
   python-service:
     build:
       context: ./python-service
       dockerfile: Dockerfile
-    
+
     container_name: python-service-container
-    
+
     ports:
       - "8000:8000"  # FastAPI 포트
-    
+
     # 의존성: Kafka가 먼저 시작되어야 Consumer 연결 가능
     depends_on:
       - novel-kafka
       - novel-mysql
-    
+
     # [보안] 환경 변수 주입
     # python-service/.env 파일에서 로드되거나
     # 여기서 직접 지정 가능
     environment:
       # Python 로그 즉시 출력 (버퍼링 비활성화)
       PYTHONUNBUFFERED: 1
-      
+
       # Kafka 설정
       KAFKA_BOOTSTRAP_SERVERS: novel-kafka:29092
       KAFKA_TOPIC: novel-reviews
       KAFKA_GROUP_ID: python-consumer-group
-      
+
       # MySQL 설정
       DB_HOST: novel-mysql
       DB_PORT: 3306
       DB_USER: ${MYSQL_USER}
       DB_PASSWORD: ${MYSQL_PASSWORD}
       DB_NAME: ${MYSQL_DATABASE}
-      
+
       # 로그 레벨
       LOG_LEVEL: INFO
-    
+
+      # ===================================
+      # Phase 5: BERT 감성 분석 설정
+      # ===================================
+      # USE_BERT=true: BERT 분석기 사용 (높은 정확도, 7가지 감정)
+      # USE_BERT=false: KoNLPy 분석기 사용 (빠름, 3가지 감정)
+      # 기본값: false (하위 호환성)
+      USE_BERT: ${USE_BERT:-false}
+
     networks:
       - novel-net
-    
+
     # 재시작 정책: 실패 시 자동 재시작
     restart: unless-stopped
 
