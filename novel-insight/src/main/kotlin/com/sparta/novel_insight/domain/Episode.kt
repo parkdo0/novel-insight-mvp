@@ -2,6 +2,7 @@ package com.sparta.novel_insight.domain
 
 import com.fasterxml.jackson.annotation.JsonIgnore
 import jakarta.persistence.*
+import java.time.LocalDateTime
 
 @Entity
 @Table(name = "episode")
@@ -14,6 +15,9 @@ class Episode(
     var content: String,
 
     @Column(nullable = false)
+    var episodeNumber: Int, // 회차 번호 (1, 2, 3...)
+
+    @Column(nullable = false)
     var price: Int = 0,
 
     @Column(nullable = false)
@@ -22,6 +26,12 @@ class Episode(
     // ★ [추가] 통계 데이터
     var viewCount: Long = 0,
     var purchaseCount: Long = 0,
+
+    @Column(nullable = false)
+    var publishedAt: LocalDateTime = LocalDateTime.now(), // 발행 시간
+
+    @Column(nullable = false)
+    var createdAt: LocalDateTime = LocalDateTime.now(), // 생성 시간
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "novel_id")

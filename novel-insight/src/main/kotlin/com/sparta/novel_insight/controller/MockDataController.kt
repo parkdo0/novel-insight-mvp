@@ -1,5 +1,6 @@
 package com.sparta.novel_insight.controller
 
+import com.sparta.novel_insight.domain.MemberRole
 import com.sparta.novel_insight.service.MockDataGeneratorService
 import com.sparta.novel_insight.service.MockDataSummary
 import org.springframework.http.ResponseEntity
@@ -174,7 +175,7 @@ class MockDataController(
         try {
             // 기존 독자 및 에피소드 조회
             val readers = mockDataGeneratorService.memberRepository.findAll()
-                .filter { it.role == com.sparta.novel_insight.service.MemberRole.READER }
+                .filter { it.role == MemberRole.READER }
             val episodes = mockDataGeneratorService.episodeRepository.findAll()
 
             if (readers.isEmpty() || episodes.isEmpty()) {

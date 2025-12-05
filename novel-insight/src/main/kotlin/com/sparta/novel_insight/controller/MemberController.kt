@@ -67,7 +67,8 @@ class MemberController(
         val newMember = Member(
             email = request.email,
             password = encodedPassword,
-            nickname = request.nickname
+            nickname = request.nickname,
+            role = request.role ?: com.sparta.novel_insight.domain.MemberRole.READER
         )
 
         val savedMember = memberRepository.save(newMember)

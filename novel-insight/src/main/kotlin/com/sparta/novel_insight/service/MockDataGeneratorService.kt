@@ -63,12 +63,12 @@ import kotlin.random.Random
 // ```
 @Service
 class MockDataGeneratorService(
-    private val memberRepository: MemberRepository,
-    private val novelRepository: NovelRepository,
-    private val episodeRepository: EpisodeRepository,
-    private val reviewRepository: ReviewRepository,
+    internal val memberRepository: MemberRepository,
+    internal val novelRepository: NovelRepository,
+    internal val episodeRepository: EpisodeRepository,
+    internal val reviewRepository: ReviewRepository,
     private val reviewAnalysisRepository: ReviewAnalysisRepository,
-    private val episodeReadLogRepository: EpisodeReadLogRepository
+    internal val episodeReadLogRepository: EpisodeReadLogRepository
 ) {
 
     companion object {
@@ -249,12 +249,12 @@ class MockDataGeneratorService(
             val author = authors.random()
             val novel = Novel(
                 title = generateNovelTitle(),
+                author = author.nickname,
+                authorId = author.id!!,
                 description = "흥미진진한 ${GENRES.random()} 소설입니다.",
                 genre = GENRES.random(),
-                authorId = author.id!!,
                 status = if (Random.nextDouble() < 0.8) NovelStatus.ONGOING else NovelStatus.COMPLETED,
-                createdAt = LocalDateTime.now().minusDays(Random.nextLong(365)),
-                updatedAt = LocalDateTime.now().minusDays(Random.nextLong(30))
+                createdAt = LocalDateTime.now().minusDays(Random.nextLong(365))
             )
             novels.add(novel)
         }
@@ -278,13 +278,16 @@ class MockDataGeneratorService(
             val episodeCount = if (isPopular) Random.nextInt(40, 80) else Random.nextInt(10, 30)
 
             repeat(episodeCount) { i ->
+                val isFree = i < 3 // 처음 3개는 무료
                 val episode = Episode(
-                    novelId = novel.id!!,
-                    episodeNumber = i + 1,
                     title = generateEpisodeTitle(i + 1),
                     content = "에피소드 내용입니다. ".repeat(Random.nextInt(50, 200)),
+                    episodeNumber = i + 1,
+                    price = if (isFree) 0 else Random.nextInt(100, 500),
+                    isFree = isFree,
                     publishedAt = novel.createdAt.plusDays(i.toLong()),
-                    createdAt = novel.createdAt.plusDays(i.toLong())
+                    createdAt = novel.createdAt.plusDays(i.toLong()),
+                    novel = novel
                 )
                 episodes.add(episode)
             }
@@ -328,12 +331,14 @@ class MockDataGeneratorService(
                 )
             }
 
+            val rating = BigDecimal(((score / 20).toInt() + 1).coerceIn(1, 5))
             val review = Review(
+                content = content,
                 userId = reader.id!!,
                 novelId = novel.id!!,
-                content = content,
-                rating = ((score / 20).toInt() + 1).coerceIn(1, 5),
-                createdAt = LocalDateTime.now().minusDays(Random.nextLong(30))
+                rating = rating,
+                createdAt = LocalDateTime.now().minusDays(Random.nextLong(30)),
+                novel = novel
             )
             reviews.add(review)
 
@@ -434,7 +439,7 @@ class MockDataGeneratorService(
             val log = EpisodeReadLog(
                 userId = reader?.id,
                 episodeId = episode.id!!,
-                novelId = episode.novelId,
+                novelId = episode.novel.id!!,
                 sessionId = "session-${Random.nextLong(1000000, 9999999)}",
                 startedAt = startedAt,
                 endedAt = startedAt.plusSeconds(readingDuration.toLong()),
@@ -495,10 +500,4 @@ data class MockDataSummary(
     val readLogs: Int
 )
 
-// Member 임시 도메인 (실제 프로젝트에 맞게 수정 필요)
-enum class MemberRole {
-    AUTHOR, READER
-}
-
-// 이 부분은 실제 Member, Novel, Episode, Review 엔티티에 맞게 수정해야 합니다
-// 현재는 가상의 구조를 가정했습니다
+// MemberRole enum은 domain 패키지에 정의되어 있습니다
