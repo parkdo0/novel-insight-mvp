@@ -9,77 +9,75 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 import kotlin.system.measureTimeMillis
 
-/**
- * # BenchmarkController
- *
- * Phase 6 성능 벤치마크 API 컨트롤러입니다.
- *
- * ## WHY 성능 벤치마크?
- *
- * ### 1. 병목 지점 파악
- * - 어느 쿼리가 느린지 측정
- * - 캐싱 효과 정량화
- * - 인덱스 효과 검증
- *
- * ### 2. 확장성 검증
- * - 데이터 증가 시 성능 변화 예측
- * - 10만 vs 100만 vs 1000만 건 비교
- *
- * ### 3. 최적화 근거
- * - "느리다"는 주관적 → "500ms → 50ms"로 객관적
- * - 개선 효과 측정 가능
- *
- * ## 벤치마크 항목
- *
- * ### 1. 읽기 로그 조회 성능
- * - 시간 범위 조회 (1일, 7일, 30일)
- * - 인덱스 유무 비교
- *
- * ### 2. 집계 쿼리 성능
- * - COUNT, GROUP BY, AVG 등
- * - 50만 건 vs 100만 건
- *
- * ### 3. 캐시 성능 비교
- * - Redis vs MySQL
- * - 실시간 지표 조회
- *
- * ### 4. 배치 처리 성능
- * - DropOffPoint 집계 시간
- * - AuthorDashboardCache 생성 시간
- *
- * ## 사용 예시
- *
- * ```bash
- * # 전체 벤치마크 실행
- * GET /api/benchmark/run-all
- *
- * # 특정 벤치마크만 실행
- * GET /api/benchmark/query-performance
- * GET /api/benchmark/cache-performance
- * GET /api/benchmark/aggregation-performance
- * ```
- *
- * ## 응답 예시
- *
- * ```json
- * {
- *   "testName": "Query Performance",
- *   "results": [
- *     {
- *       "description": "1일치 로그 조회",
- *       "executionTimeMs": 45,
- *       "recordCount": 16000
- *     },
- *     {
- *       "description": "30일치 로그 조회",
- *       "executionTimeMs": 523,
- *       "recordCount": 480000
- *     }
- *   ],
- *   "summary": "인덱스 최적화로 평균 10배 성능 향상"
- * }
- * ```
- */
+// # BenchmarkController
+//
+// Phase 6 성능 벤치마크 API 컨트롤러입니다.
+//
+// ## WHY 성능 벤치마크?
+//
+// ### 1. 병목 지점 파악
+// - 어느 쿼리가 느린지 측정
+// - 캐싱 효과 정량화
+// - 인덱스 효과 검증
+//
+// ### 2. 확장성 검증
+// - 데이터 증가 시 성능 변화 예측
+// - 10만 vs 100만 vs 1000만 건 비교
+//
+// ### 3. 최적화 근거
+// - "느리다"는 주관적 → "500ms → 50ms"로 객관적
+// - 개선 효과 측정 가능
+//
+// ## 벤치마크 항목
+//
+// ### 1. 읽기 로그 조회 성능
+// - 시간 범위 조회 (1일, 7일, 30일)
+// - 인덱스 유무 비교
+//
+// ### 2. 집계 쿼리 성능
+// - COUNT, GROUP BY, AVG 등
+// - 50만 건 vs 100만 건
+//
+// ### 3. 캐시 성능 비교
+// - Redis vs MySQL
+// - 실시간 지표 조회
+//
+// ### 4. 배치 처리 성능
+// - DropOffPoint 집계 시간
+// - AuthorDashboardCache 생성 시간
+//
+// ## 사용 예시
+//
+// ```bash
+// # 전체 벤치마크 실행
+// GET /api/benchmark/run-all
+//
+// # 특정 벤치마크만 실행
+// GET /api/benchmark/query-performance
+// GET /api/benchmark/cache-performance
+// GET /api/benchmark/aggregation-performance
+// ```
+//
+// ## 응답 예시
+//
+// ```json
+// {
+//   "testName": "Query Performance",
+//   "results": [
+//     {
+//       "description": "1일치 로그 조회",
+//       "executionTimeMs": 45,
+//       "recordCount": 16000
+//     },
+//     {
+//       "description": "30일치 로그 조회",
+//       "executionTimeMs": 523,
+//       "recordCount": 480000
+//     }
+//   ],
+//   "summary": "인덱스 최적화로 평균 10배 성능 향상"
+// }
+// ```
 @RestController
 @RequestMapping("/api/benchmark")
 class BenchmarkController(
@@ -91,13 +89,11 @@ class BenchmarkController(
     private val redisTemplate: RedisTemplate<String, String>
 ) {
 
-    /**
-     * 전체 벤치마크 실행
-     *
-     * 모든 벤치마크를 순차 실행하고 결과를 반환합니다.
-     *
-     * @return 전체 벤치마크 결과
-     */
+    // 전체 벤치마크 실행
+    //
+    // 모든 벤치마크를 순차 실행하고 결과를 반환합니다.
+    //
+    // @return 전체 벤치마크 결과
     @GetMapping("/run-all")
     fun runAllBenchmarks(): ResponseEntity<BenchmarkSummary> {
         val totalStartTime = System.currentTimeMillis()
@@ -127,23 +123,21 @@ class BenchmarkController(
         )
     }
 
-    /**
-     * 쿼리 성능 벤치마크
-     *
-     * ## 측정 항목
-     *
-     * 1. 시간 범위별 조회 (1일, 7일, 30일)
-     * 2. 에피소드별 필터링
-     * 3. 완독률 계산
-     *
-     * ## 예상 결과
-     *
-     * - 1일: ~50ms (인덱스 활용)
-     * - 7일: ~200ms
-     * - 30일: ~500ms (500,000건)
-     *
-     * @return 벤치마크 결과
-     */
+    // 쿼리 성능 벤치마크
+    //
+    // ## 측정 항목
+    //
+    // 1. 시간 범위별 조회 (1일, 7일, 30일)
+    // 2. 에피소드별 필터링
+    // 3. 완독률 계산
+    //
+    // ## 예상 결과
+    //
+    // - 1일: ~50ms (인덱스 활용)
+    // - 7일: ~200ms
+    // - 30일: ~500ms (500,000건)
+    //
+    // @return 벤치마크 결과
     @GetMapping("/query-performance")
     fun benchmarkQueryPerformance(): BenchmarkResult {
         val tests = mutableListOf<BenchmarkTest>()
@@ -224,23 +218,21 @@ class BenchmarkController(
         )
     }
 
-    /**
-     * 집계 성능 벤치마크
-     *
-     * ## 측정 항목
-     *
-     * 1. DropOffPoint 집계 시간
-     * 2. AuthorDashboardCache 생성 시간
-     * 3. 감성 분석 통계 조회
-     *
-     * ## 예상 결과
-     *
-     * - DropOffPoint: ~2-3초 (50만 건 처리)
-     * - AuthorDashboardCache: ~1-2초
-     * - ReviewAnalysis 통계: ~100ms
-     *
-     * @return 벤치마크 결과
-     */
+    // 집계 성능 벤치마크
+    //
+    // ## 측정 항목
+    //
+    // 1. DropOffPoint 집계 시간
+    // 2. AuthorDashboardCache 생성 시간
+    // 3. 감성 분석 통계 조회
+    //
+    // ## 예상 결과
+    //
+    // - DropOffPoint: ~2-3초 (50만 건 처리)
+    // - AuthorDashboardCache: ~1-2초
+    // - ReviewAnalysis 통계: ~100ms
+    //
+    // @return 벤치마크 결과
     @GetMapping("/aggregation-performance")
     fun benchmarkAggregationPerformance(): BenchmarkResult {
         val tests = mutableListOf<BenchmarkTest>()
@@ -313,23 +305,21 @@ class BenchmarkController(
         )
     }
 
-    /**
-     * 캐시 성능 벤치마크
-     *
-     * ## 측정 항목
-     *
-     * 1. Redis 조회 (현재 읽는 사용자 수)
-     * 2. MySQL 조회 (같은 데이터)
-     * 3. 속도 비교
-     *
-     * ## 예상 결과
-     *
-     * - Redis: <10ms (메모리)
-     * - MySQL: 50-100ms (디스크)
-     * - **10배 이상 차이**
-     *
-     * @return 벤치마크 결과
-     */
+    // 캐시 성능 벤치마크
+    //
+    // ## 측정 항목
+    //
+    // 1. Redis 조회 (현재 읽는 사용자 수)
+    // 2. MySQL 조회 (같은 데이터)
+    // 3. 속도 비교
+    //
+    // ## 예상 결과
+    //
+    // - Redis: <10ms (메모리)
+    // - MySQL: 50-100ms (디스크)
+    // - **10배 이상 차이**
+    //
+    // @return 벤치마크 결과
     @GetMapping("/cache-performance")
     fun benchmarkCachePerformance(): BenchmarkResult {
         val tests = mutableListOf<BenchmarkTest>()
@@ -388,21 +378,19 @@ class BenchmarkController(
         )
     }
 
-    /**
-     * 인덱스 효과 벤치마크
-     *
-     * ## 측정 항목
-     *
-     * 1. 인덱스 사용 쿼리 vs Full Table Scan
-     * 2. Composite Index 효과
-     *
-     * ## 예상 결과
-     *
-     * - 인덱스 사용: <100ms
-     * - Full Scan: >1000ms (10배 차이)
-     *
-     * @return 벤치마크 결과
-     */
+    // 인덱스 효과 벤치마크
+    //
+    // ## 측정 항목
+    //
+    // 1. 인덱스 사용 쿼리 vs Full Table Scan
+    // 2. Composite Index 효과
+    //
+    // ## 예상 결과
+    //
+    // - 인덱스 사용: <100ms
+    // - Full Scan: >1000ms (10배 차이)
+    //
+    // @return 벤치마크 결과
     @GetMapping("/index-effectiveness")
     fun benchmarkIndexEffectiveness(): BenchmarkResult {
         val tests = mutableListOf<BenchmarkTest>()
@@ -462,13 +450,11 @@ class BenchmarkController(
         )
     }
 
-    /**
-     * 데이터 통계 조회
-     *
-     * 현재 DB에 있는 데이터 개수를 반환합니다.
-     *
-     * @return 데이터 통계
-     */
+    // 데이터 통계 조회
+    //
+    // 현재 DB에 있는 데이터 개수를 반환합니다.
+    //
+    // @return 데이터 통계
     @GetMapping("/data-stats")
     fun getDataStats(): ResponseEntity<Map<String, Long>> {
         val stats = mapOf(
@@ -482,27 +468,21 @@ class BenchmarkController(
     }
 }
 
-/**
- * 벤치마크 전체 요약
- */
+// 벤치마크 전체 요약
 data class BenchmarkSummary(
     val totalDurationMs: Long,
     val benchmarks: List<BenchmarkResult>,
     val timestamp: LocalDateTime
 )
 
-/**
- * 벤치마크 결과
- */
+// 벤치마크 결과
 data class BenchmarkResult(
     val testName: String,
     val tests: List<BenchmarkTest>,
     val summary: String
 )
 
-/**
- * 개별 테스트 결과
- */
+// 개별 테스트 결과
 data class BenchmarkTest(
     val description: String,
     var executionTimeMs: Long,
