@@ -13,7 +13,7 @@ class Review(
     @Column(nullable = false)
     var userId: Long, // 리뷰 작성자 ID
 
-    @Column(nullable = false)
+    @Column(name = "novel_id", nullable = false, insertable = false, updatable = false)
     var novelId: Long, // 소설 ID (중복이지만 MockDataGenerator 호환성 위해 추가)
 
     @Column(nullable = false)
