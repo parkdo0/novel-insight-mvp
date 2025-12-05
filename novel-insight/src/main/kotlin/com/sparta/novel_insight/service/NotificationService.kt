@@ -1,184 +1,185 @@
 package com.sparta.novel_insight.service
 
+import com.sparta.novel_insight.domain.Member
+import com.sparta.novel_insight.domain.Notification
+import com.sparta.novel_insight.domain.NotificationType
+import com.sparta.novel_insight.repository.NotificationRepository
+import org.slf4j.LoggerFactory
+import org.springframework.messaging.simp.SimpMessagingTemplate
 import org.springframework.stereotype.Service
+import org.springframework.transaction.annotation.Transactional
+import java.time.LocalDateTime
 
 /**
- * 알림 전송 서비스
+ * # NotificationService - 실시간 알림 서비스
  *
- * 실제 프로덕션 환경에서는 이메일, SMS, Push 알림을 전송하는 서비스입니다.
- * 현재는 동기식 처리로 구현되어 있어 성능 문제가 있는 예제입니다.
+ * ## 목적
+ * - 알림 생성 및 저장 (DB 영속성)
+ * - WebSocket을 통한 실시간 알림 발송
+ * - 알림 조회, 읽음 처리 등 비즈니스 로직
  *
- * 문제점 (안티패턴):
- * - Thread.sleep(3000)으로 3초 동안 블로킹
- * - API 응답 시간이 3초 이상 지연됨
- * - 사용자 경험 저하
- * - 서버 리소스 낭비 (스레드 블로킹)
+ * ## 실무 권장사항 (Production Best Practices)
  *
- * 개선 방안:
- * 1. @Async 어노테이션 사용 (Spring 비동기 처리)
- * 2. RabbitMQ/Kafka로 메시지 큐 사용 (현재 프로젝트에서 사용 중)
- * 3. 별도의 알림 서비스 분리 (MSA)
- * 4. CompletableFuture 사용 (비동기 프로그래밍)
+ * ### 1. Dual Write 전략 (이중 저장)
+ * ```kotlin
+ * fun sendNotification(...) {
+ *     // 1. DB 저장 (영속성)
+ *     notificationRepository.save(notification)
  *
- * IoC/DI 적용:
- * - @Service 어노테이션으로 Spring 컨테이너가 빈 관리
- * - 다른 서비스에서 의존성 주입으로 사용 가능
- * - 테스트 시 Mock 객체로 대체 가능
+ *     // 2. WebSocket 발송 (실시간)
+ *     messagingTemplate.convertAndSend(...)
+ * }
+ * ```
+ *
+ * #### WHY Dual Write?
+ * - **DB 저장**: 사용자가 오프라인이어도 나중에 확인 가능
+ * - **WebSocket**: 사용자가 온라인이면 즉시 알림
+ * - **Trade-off**: 두 번의 write 연산, but 사용자 경험 크게 향상
+ *
+ * ### 2. 알림 중복 방지 (Notification Aggregation)
+ * - 짧은 시간 내 같은 타입 알림 여러 개 → 하나로 병합
+ * - 예: "3명이 리뷰를 남겼습니다" (알림 3개 → 1개)
+ * - 사용자 피로도 감소, DB 용량 절약
+ *
+ * ### 3. WebSocket 연결 상태 처리
+ * - 온라인: 즉시 알림
+ * - 오프라인: DB 저장만 (로그인 시 조회)
+ * - 발송 실패해도 예외 던지지 않음 (서비스 중단 방지)
+ *
+ * ## 설계 패턴
+ * - **Observer Pattern**: 이벤트 발생 → 알림 발송
+ * - **Pub/Sub Pattern**: WebSocket 토픽 구독
  */
 @Service
-class NotificationService {
+class NotificationService(
+    private val notificationRepository: NotificationRepository,
+    private val messagingTemplate: SimpMessagingTemplate
+) {
+    private val logger = LoggerFactory.getLogger(NotificationService::class.java)
 
     /**
-     * 작가에게 알림 전송 (동기식 - 안티패턴 예제)
+     * 알림 생성 및 실시간 발송
      *
-     * 실무에서 이렇게 구현하면 안 되는 코드입니다.
-     * 교육 목적으로 동기식 처리의 문제점을 보여주기 위한 예제입니다.
+     * ## 프로세스
+     * 1. Notification 엔티티 생성
+     * 2. DB에 저장 (영속성)
+     * 3. WebSocket으로 실시간 발송
      *
-     * 문제점 분석:
-     * 1. Thread.sleep(3000): 현재 스레드를 3초 동안 블로킹
-     *    - 톰캣 스레드 풀의 스레드를 3초 동안 점유
-     *    - 동시 처리 가능한 요청 수 감소
-     *    - 스레드 풀 고갈 위험 (스레드가 모두 블로킹되면 새 요청 처리 불가)
-     *
-     * 2. println 사용: 프로덕션 코드에서는 안티패턴
-     *    - 로그 레벨 제어 불가
-     *    - 로그 파일 저장 불가
-     *    - 성능 저하 (System.out은 동기화됨)
-     *    - SLF4J Logger 사용 권장
-     *
-     * 3. 예외 처리 불충분:
-     *    - e.printStackTrace(): 단순 콘솔 출력
-     *    - 로그 관리 시스템에 기록되지 않음
-     *    - 에러 추적 및 모니터링 불가
-     *
-     * 개선된 코드 예시:
+     * ## 사용 예시
      * ```kotlin
-     * @Service
-     * class NotificationService {
-     *     private val log = LoggerFactory.getLogger(javaClass)
-     *
-     *     @Async("notificationExecutor")  // 비동기 실행
-     *     fun sendToAuthor() {
-     *         try {
-     *             log.info("알림 발송 시작...")
-     *             // 실제 이메일/SMS 발송 로직
-     *             emailService.send(...)
-     *             log.info("알림 발송 완료!")
-     *         } catch (e: Exception) {
-     *             log.error("알림 발송 실패", e)
-     *             // 재시도 로직 또는 DLQ로 이동
-     *         }
-     *     }
-     * }
-     * ```
-     *
-     * @Async 어노테이션 사용 시:
-     * - 별도의 스레드 풀에서 실행
-     * - 호출한 메서드는 즉시 리턴 (비블로킹)
-     * - TaskExecutor 설정 필요
-     * - 반환 타입은 void 또는 Future/CompletableFuture
-     *
-     * 스레드 풀 설정 예시 (Config 클래스):
-     * ```kotlin
-     * @Configuration
-     * @EnableAsync  // @Async 활성화
-     * class AsyncConfig {
-     *     @Bean("notificationExecutor")
-     *     fun notificationExecutor(): Executor {
-     *         return ThreadPoolTaskExecutor().apply {
-     *             corePoolSize = 5          // 기본 스레드 개수
-     *             maxPoolSize = 10          // 최대 스레드 개수
-     *             queueCapacity = 100       // 큐 크기
-     *             setThreadNamePrefix("notification-")
-     *             initialize()
-     *         }
-     *     }
-     * }
+     * // ReviewService에서 호출
+     * notificationService.sendNotification(
+     *     type = NotificationType.NEW_REVIEW,
+     *     recipient = novel.author,
+     *     sender = reviewer,
+     *     content = "${reviewer.nickname}님이 리뷰를 남겼습니다",
+     *     relatedId = review.id
+     * )
      * ```
      */
-    fun sendToAuthor() {
-        // 일부러 3초 동안 멈추게 함 (메일 서버 통신 지연 시뮬레이션)
-        // 실무에서는 절대 사용하면 안 되는 코드!
-        println("알림 발송 시작... (동기 방식)")
+    @Transactional
+    fun sendNotification(
+        type: NotificationType,
+        recipient: Member,
+        sender: Member?,
+        content: String,
+        relatedId: Long? = null
+    ): Notification {
+        // 1. DB 저장
+        val notification = Notification(
+            type = type,
+            recipient = recipient,
+            sender = sender,
+            content = content,
+            relatedId = relatedId
+        )
+        val saved = notificationRepository.save(notification)
+        logger.info("알림 저장: id=${saved.id}, type=$type, recipient=${recipient.id}")
 
+        // 2. WebSocket 발송
         try {
-            // Thread.sleep(): 현재 스레드를 지정된 시간만큼 일시 정지
-            // InterruptedException: 스레드가 대기 중일 때 interrupt() 호출 시 발생
-            // 스레드 풀 환경에서는 InterruptedException 처리 필수
-            Thread.sleep(3000) // 3초 대기 (3000 밀리초)
-
-        } catch (e: InterruptedException) {
-            // InterruptedException 처리
-            // 스레드 인터럽트 상태 복원 필수!
-            Thread.currentThread().interrupt()
-
-            // printStackTrace(): 스택 트레이스를 콘솔에 출력
-            // 프로덕션에서는 사용 금지!
-            // 대신 Logger 사용: log.error("알림 발송 중단", e)
-            e.printStackTrace()
+            sendWebSocketNotification(saved)
+        } catch (e: Exception) {
+            logger.error("WebSocket 발송 실패: ${e.message}", e)
         }
 
+        return saved
+    }
+
+    /**
+     * WebSocket 실시간 발송
+     *
+     * ## 목적지
+     * - `/topic/notifications/{userId}`
+     */
+    private fun sendWebSocketNotification(notification: Notification) {
+        val destination = "/topic/notifications/${notification.recipient.id}"
+        val dto = mapOf(
+            "id" to notification.id,
+            "type" to notification.type.name,
+            "content" to notification.content,
+            "relatedId" to notification.relatedId,
+            "isRead" to notification.isRead,
+            "createdAt" to notification.createdAt.toString(),
+            "sender" to notification.sender?.let {
+                mapOf("id" to it.id, "nickname" to it.nickname)
+            }
+        )
+        messagingTemplate.convertAndSend(destination, dto)
+        logger.info("WebSocket 발송 완료: $destination")
+    }
+
+    /**
+     * 미읽은 알림 조회
+     */
+    @Transactional(readOnly = true)
+    fun getUnreadNotifications(recipient: Member): List<Notification> {
+        return notificationRepository.findTop20ByRecipientAndIsReadFalseOrderByCreatedAtDesc(recipient)
+    }
+
+    /**
+     * 미읽은 알림 개수
+     */
+    @Transactional(readOnly = true)
+    fun getUnreadCount(recipient: Member): Long {
+        return notificationRepository.countByRecipientAndIsReadFalse(recipient)
+    }
+
+    /**
+     * 알림 읽음 처리
+     */
+    @Transactional
+    fun markAsRead(notificationId: Long) {
+        val notification = notificationRepository.findById(notificationId).orElseThrow {
+            IllegalArgumentException("존재하지 않는 알림: id=$notificationId")
+        }
+        notification.markAsRead()
+        notificationRepository.save(notification)
+    }
+
+    /**
+     * 모든 알림 읽음 처리
+     */
+    @Transactional
+    fun markAllAsRead(recipient: Member): Int {
+        return notificationRepository.markAllAsRead(recipient.id!!)
+    }
+
+    /* ===================================
+     * [LEGACY] 기존 동기식 알림 메서드 (deprecated)
+     * ===================================
+     * 실무에서는 사용하지 마세요!
+     */
+    @Deprecated("Use sendNotification() instead", ReplaceWith("sendNotification()"))
+    fun sendToAuthor() {
+        logger.warn("[DEPRECATED] sendToAuthor() 호출됨. sendNotification() 사용을 권장합니다.")
+        println("알림 발송 시작... (동기 방식)")
+        try {
+            Thread.sleep(3000)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+            e.printStackTrace()
+        }
         println("알림 발송 완료!")
     }
 }
-
-/*
- * 비동기 처리 패턴 및 고려사항:
- *
- * 1. @Async 어노테이션
- *    - Spring이 제공하는 메서드 레벨 비동기 실행
- *    - @EnableAsync로 활성화 필요
- *    - 프록시 기반 AOP 구현
- *    - self-invocation 주의 (같은 클래스 내 호출 시 비동기 동작 안 함)
- *
- * 2. CompletableFuture
- *    - Java 8의 비동기 프로그래밍 API
- *    - 콜백 체이닝 가능
- *    - thenApply, thenCompose, thenCombine 등
- *    - 예외 처리: exceptionally, handle
- *
- * 3. Reactive Programming
- *    - Spring WebFlux (Reactor)
- *    - Mono, Flux 사용
- *    - 논블로킹 I/O
- *    - 높은 처리량, 적은 리소스
- *
- * 4. 메시지 큐 (RabbitMQ, Kafka)
- *    - 현재 프로젝트에서 사용 중
- *    - 느슨한 결합
- *    - 확장성 우수
- *    - 메시지 영속성
- *
- * 5. 스레드 풀 설정
- *    - corePoolSize: 기본 스레드 개수
- *    - maxPoolSize: 최대 스레드 개수
- *    - queueCapacity: 큐 크기
- *    - keepAliveTime: 유휴 스레드 제거 시간
- *
- * 6. 예외 처리
- *    - @Async 메서드의 예외는 호출자에게 전파 안 됨
- *    - AsyncUncaughtExceptionHandler 설정 필요
- *    - 로깅 및 모니터링 필수
- *
- * 7. 트랜잭션 주의사항
- *    - @Async + @Transactional 함께 사용 시 주의
- *    - 별도 스레드에서 실행되므로 트랜잭션 전파 안 됨
- *    - @Async 메서드 내부에 @Transactional 적용
- *
- * 8. 성능 모니터링
- *    - 스레드 풀 사용률 모니터링
- *    - 큐 길이 모니터링
- *    - 처리 시간 측정
- *    - Rejected Execution 발생 시 알림
- *
- * 9. 백프레셔 (Backpressure)
- *    - 작업 속도가 처리 속도를 초과할 때 대응
- *    - 큐가 가득 차면 어떻게 할 것인가?
- *    - 정책: 거부(reject), 대기(wait), 폐기(discard)
- *
- * 10. 디버깅 및 테스트
- *     - 비동기 코드는 디버깅이 어려움
- *     - 로깅 전략 중요
- *     - 통합 테스트 필수
- *     - @Async 테스트 시 await() 또는 Thread.sleep() 필요
- */
