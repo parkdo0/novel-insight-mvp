@@ -145,6 +145,50 @@ server:
   port: ${SERVER_PORT:8080}
 
 # ===================================
+# Actuator + Prometheus 설정 (Phase 4)
+# ===================================
+management:
+  # Actuator 엔드포인트 설정
+  endpoints:
+    web:
+      exposure:
+        # 노출할 엔드포인트 (보안 주의!)
+        # - health: 헬스 체크
+        # - prometheus: Prometheus 메트릭 수집
+        # - metrics: Micrometer 메트릭
+        # - info: 애플리케이션 정보
+        include: health,prometheus,metrics,info
+
+      # Actuator 엔드포인트 기본 경로
+      base-path: /actuator
+
+  # 헬스 체크 상세 정보 노출
+  endpoint:
+    health:
+      show-details: always  # always: 모든 사용자에게 상세 정보 표시
+
+  # 메트릭 설정
+  metrics:
+    # Tag 추가 (메트릭 필터링용)
+    tags:
+      application: ${spring.application.name}
+      environment: ${ENVIRONMENT:local}
+
+    # Prometheus 포맷으로 메트릭 수집
+    export:
+      prometheus:
+        enabled: true
+
+    # JVM 메트릭 활성화
+    enable:
+      jvm: true
+      process: true
+      system: true
+      tomcat: true
+      logback: true
+      kafka: true
+
+# ===================================
 # 로깅 설정
 # ===================================
 logging:
