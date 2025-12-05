@@ -2,7 +2,7 @@
 
 **웹소설 플랫폼 작가를 위한 실시간 독자 반응 분석 시스템**
 
-[![Phase](https://img.shields.io/badge/Phase-3%20Complete-success)](https://github.com/parkdo0/novel-insight-mvp)
+[![Phase](https://img.shields.io/badge/Phase-4%20Complete-success)](https://github.com/parkdo0/novel-insight-mvp)
 [![Stack](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen)](https://spring.io/projects/spring-boot)
 [![Kotlin](https://img.shields.io/badge/Kotlin-1.9-blue)](https://kotlinlang.org/)
 
@@ -20,6 +20,7 @@
 4. **✅ 프로덕션급 인증**: HttpOnly Cookie + Refresh Token으로 XSS/CSRF 방어
 5. **✅ WebSocket 실시간 알림**: 리뷰/댓글 작성 시 작가에게 즉시 알림 전송 (Phase 2 완료)
 6. **✅ Kafka Partitioning**: Novel ID 기반 파티션 분산으로 병렬 처리 3배 향상 (Phase 3 완료)
+7. **✅ Grafana + Prometheus**: 실시간 메트릭 수집 및 시각화 대시보드 (Phase 4 완료)
 
 ---
 
@@ -46,6 +47,7 @@
 | **Analysis** | Python 3.9, FastAPI, KoNLPy (Okt) |
 | **Database** | MySQL 8.0, Redis |
 | **Infra** | Docker Compose, Zookeeper |
+| **Monitoring** | Prometheus, Grafana, Micrometer |
 | **Batch** | Spring Batch |
 
 ---
@@ -85,6 +87,8 @@ novel-rabbitmq-container      Up
 novel-zookeeper-container     Up
 novel-kafka-container         Up
 python-service-container      Up
+novel-prometheus-container    Up
+novel-grafana-container       Up
 ```
 
 ### 4. Spring Boot 실행
@@ -419,6 +423,20 @@ docker compose logs -f python-service
 
 http://localhost:15672 (guest/guest)
 
+### Prometheus 메트릭 (Phase 4 ⭐)
+
+```bash
+# Prometheus UI
+http://localhost:9090
+
+# Spring Boot Actuator 메트릭
+http://localhost:8080/actuator/prometheus
+
+# Grafana 대시보드
+http://localhost:3000
+# 계정: admin / admin (초기 로그인)
+```
+
 ### WebSocket 연결 상태 확인
 
 ```bash
@@ -505,7 +523,7 @@ SELECT * FROM notification LIMIT 10;  # Phase 2 추가
 - **병렬 처리**: Consumer 3개가 파티션별로 분담 → 처리 속도 3배 향상
 - **부하 분산**: 인기 소설과 일반 소설 독립 처리
 
-**커밋**: (진행 중)
+**커밋**: `4ab2096 - Feat: Implement Kafka Partitioning for parallel processing (Phase 3)`
 
 **주요 효과:**
 1. **이벤트 순서 보장**: 같은 소설 리뷰는 시간순 정확히 처리
@@ -524,11 +542,42 @@ After (파티션 3개):
            → [P2] → [Consumer C] ┘
 ```
 
-### 📊 Phase 4: Grafana + Prometheus (진행 예정)
-- 알림 발송 성공/실패율 모니터링
-- WebSocket 연결 수 추적
-- API 응답 시간 대시보드
-- Kafka lag 모니터링
+### ✅ Phase 4: Grafana + Prometheus (완료 ⭐)
+- **Micrometer + Prometheus**: Spring Boot Actuator 메트릭 수집
+- **JVM 메트릭**: 힙 메모리, GC, 스레드 수 등
+- **HTTP 메트릭**: API 응답 시간, 처리량, 에러율
+- **Kafka 메트릭**: Producer/Consumer 처리량, lag
+- **시스템 메트릭**: CPU, 메모리, 디스크 I/O
+- **Prometheus**: Time-series 메트릭 저장소 (15초 주기 수집)
+- **Grafana**: 실시간 대시보드 시각화
+
+**커밋**: (진행 중)
+
+**주요 기능:**
+- **Spring Boot Actuator 엔드포인트**: `/actuator/prometheus`
+- **Prometheus 수집**: 15초 주기로 메트릭 스크래핑
+- **Grafana 대시보드**: http://localhost:3000 (admin/admin)
+- **자동 메트릭**: JVM, Tomcat, Kafka, System
+
+**모니터링 가능한 메트릭:**
+```promql
+# JVM 힙 메모리 사용량
+jvm_memory_used_bytes{area="heap"}
+
+# HTTP 요청 처리 시간 (95 percentile)
+http_server_requests_seconds{quantile="0.95"}
+
+# Kafka Producer 전송 속도
+kafka_producer_record_send_rate
+
+# 에러율 (5분 평균)
+rate(http_server_requests_seconds_count{status="500"}[5m])
+```
+
+**접속 정보:**
+- Prometheus: http://localhost:9090
+- Grafana: http://localhost:3000 (초기 계정: admin/admin)
+- Actuator: http://localhost:8080/actuator
 
 ### 🤖 Phase 5: BERT 한국어 감성 분석 (진행 예정)
 - KoNLPy → BERT 마이그레이션

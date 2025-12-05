@@ -36,6 +36,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-actuator")
     implementation("org.springframework.kafka:spring-kafka") // ★ Kafka
     implementation("org.springframework.boot:spring-boot-starter-websocket") // ★ WebSocket + STOMP
+    implementation("io.micrometer:micrometer-registry-prometheus") // ★ Phase 4: Prometheus 메트릭 수집
     implementation("com.querydsl:querydsl-jpa:5.0.0:jakarta")
     implementation("org.springframework.boot:spring-boot-starter-batch")
     implementation("org.springframework.cloud:spring-cloud-starter-openfeign")

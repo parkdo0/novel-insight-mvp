@@ -228,6 +228,70 @@ services:
     # 재시작 정책: 실패 시 자동 재시작
     restart: unless-stopped
 
+  # ===================================
+  # Prometheus (메트릭 수집 서버) - Phase 4
+  # ===================================
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: novel-prometheus-container
+
+    ports:
+      - "9090:9090"  # Prometheus UI
+
+    # prometheus.yml 설정 파일 마운트
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus-data:/prometheus
+
+    # Prometheus 시작 명령어
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/usr/share/prometheus/console_libraries'
+      - '--web.console.templates=/usr/share/prometheus/consoles'
+
+    networks:
+      - novel-net
+
+    # Spring Boot Actuator가 준비될 때까지 대기
+    # (실제로는 depends_on으로 순서만 보장, 헬스체크는 별도 필요)
+    restart: unless-stopped
+
+  # ===================================
+  # Grafana (메트릭 시각화 대시보드) - Phase 4
+  # ===================================
+  grafana:
+    image: grafana/grafana:latest
+    container_name: novel-grafana-container
+
+    ports:
+      - "3000:3000"  # Grafana UI
+
+    # Grafana 데이터 영속성
+    volumes:
+      - grafana-data:/var/lib/grafana
+
+    # Grafana 환경 변수
+    environment:
+      # 관리자 계정 (초기 로그인)
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+
+      # 익명 접근 비활성화
+      GF_AUTH_ANONYMOUS_ENABLED: false
+
+      # 서버 설정
+      GF_SERVER_ROOT_URL: http://localhost:3000
+
+    networks:
+      - novel-net
+
+    # Prometheus가 먼저 시작되어야 함
+    depends_on:
+      - prometheus
+
+    restart: unless-stopped
+
 # ===================================
 # Docker 네트워크 정의
 # ===================================
@@ -238,10 +302,13 @@ networks:
     # 서비스 이름(novel-mysql, novel-kafka 등)으로 접근
 
 # ===================================
-# Docker 볼륨 정의 (선택사항)
+# Docker 볼륨 정의
 # ===================================
-# volumes:
-#   mysql-data:
-#     driver: local
-#   kafka-data:
-#     driver: local
+volumes:
+  # Prometheus 데이터 영속성 (메트릭 히스토리 저장)
+  prometheus-data:
+    driver: local
+
+  # Grafana 데이터 영속성 (대시보드, 사용자 설정 저장)
+  grafana-data:
+    driver: local
