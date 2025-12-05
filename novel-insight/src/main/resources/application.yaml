@@ -22,7 +22,7 @@ spring:
     # [보안] 민감 정보는 환경변수로 주입받습니다
     # .env 파일이나 시스템 환경변수에서 설정하세요
     username: ${DB_USERNAME:novel_user}
-    password: ${DB_PASSWORD}
+    password: ${DB_PASSWORD:password}
 
   # ===================================
   # JPA 설정
@@ -108,9 +108,10 @@ spring:
 # ===================================
 jwt:
   # [보안] JWT 서명 비밀키 (최소 32자 이상 권장)
-  # 환경변수로 반드시 주입받아야 합니다 (기본값 없음)
+  # 환경변수로 반드시 주입받아야 합니다 (기본값: 개발용)
   # 예: openssl rand -base64 32
-  secret: ${JWT_SECRET}
+  # ⚠️ 프로덕션에서는 반드시 환경변수로 안전한 키를 설정하세요!
+  secret: ${JWT_SECRET:dev-secret-key-minimum-32-characters-long-for-hs256}
 
   # JWT 발급자 (Issuer)
   issuer: ${JWT_ISSUER:novel-insight}
