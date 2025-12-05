@@ -1,52 +1,156 @@
+# ===================================
+# Novel Insight - Spring Boot 설정 파일
+# ===================================
+# 환경변수를 사용하여 민감 정보를 분리합니다
+# ${ENV_VAR:기본값} 형식으로 환경변수를 참조합니다
+# ===================================
+
 spring:
   application:
     name: novel-insight
+
+  # ===================================
+  # 데이터베이스 설정
+  # ===================================
   datasource:
-    # Docker가 떠있는 내 PC(localhost)에 접속
-    url: jdbc:mysql://localhost:3306/novel_insight?useSSL=false&allowPublicKeyRetrieval=true
+    # [중요] 환경변수로 주입받습니다 (기본값: localhost)
+    # 로컬 개발: jdbc:mysql://localhost:3306/novel_insight
+    # Docker: jdbc:mysql://novel-mysql:3306/novel_insight
+    url: ${DB_URL:jdbc:mysql://localhost:3306/novel_insight?useSSL=false&allowPublicKeyRetrieval=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    # ★★★ 비밀번호 하드코딩 금지! 환경변수(${...})로 주입받습니다.
-    username: novel_user
-    password: novel1234!
+    
+    # [보안] 민감 정보는 환경변수로 주입받습니다
+    # .env 파일이나 시스템 환경변수에서 설정하세요
+    username: ${DB_USERNAME:novel_user}
+    password: ${DB_PASSWORD}
+
+  # ===================================
+  # JPA 설정
+  # ===================================
   jpa:
-    # 콘솔에 실행되는 SQL을 보여줍니다 (개발용)
-    show-sql: true
+    # SQL 콘솔 출력 (개발용)
+    # 프로덕션 환경에서는 false로 설정하세요
+    show-sql: ${SHOW_SQL:true}
+    
     properties:
       hibernate:
-        format_sql: true # SQL을 예쁘게 정렬해서 보여줌
-    # [중요] ddl-auto
-    # update: Entity와 DB 비교해서 변경분만 반영 (개발용 추천)
-    # validate: 틀리면 에러 냄 (운영용)
+        # SQL 포맷팅 (가독성 향상)
+        format_sql: true
+        
+        # N+1 문제 해결: 기본 배치 사이즈
+        # 한 번의 IN 쿼리로 N개의 연관 엔티티를 가져옴
+        default_batch_fetch_size: 100
+    
     hibernate:
-      ddl-auto: update
+      # ddl-auto 설정
+      # - update: Entity 변경 시 자동 반영 (개발용)
+      # - validate: Entity와 DB 스키마 검증만 (운영용 권장)
+      # - none: 아무것도 하지 않음 (운영용)
+      ddl-auto: ${DDL_AUTO:update}
+
+  # ===================================
+  # Spring Batch 설정
+  # ===================================
   batch:
     jdbc:
-      initialize-schema: always # "항상 확인하고 없으면 만들어라"
+      # Batch 메타 테이블 자동 생성
+      initialize-schema: always
+    
     job:
-      # enabled: true 서버 켜질 때 Job 자동 실행 (기본값이지만 명시)
-      # ▼▼▼ [수정] true -> false 로 변경!
-      # "서버 켤 때 배치는 돌리지 마. (파이썬 테스트 해야 하니까)"
-      enabled: false
+      # 서버 시작 시 Job 자동 실행 여부
+      # false: 수동으로 Job을 트리거해야 함
+      enabled: ${BATCH_ENABLED:false}
+
+  # ===================================
+  # Spring Cloud 호환성 검증 비활성화
+  # ===================================
   cloud:
     compatibility-verifier:
       enabled: false
 
-  # ========================================
-  # ★★★ Kafka 설정 (로그 파이프라인) ★★★
-  # ========================================
+  # ===================================
+  # Kafka 설정 (이벤트 스트리밍)
+  # ===================================
   kafka:
-    bootstrap-servers: localhost:9092  # Kafka 브로커 주소
+    # Kafka 브로커 주소
+    # 로컬: localhost:9092
+    # Docker: novel-kafka:29092
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    
+    # Producer 설정
     producer:
+      # Key/Value 직렬화 방식 (문자열)
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.apache.kafka.common.serialization.StringSerializer
-      acks: all  # 모든 복제본이 메시지를 받았을 때만 성공 (안정성 최대)
+      
+      # acks: 메시지 전송 확인 정책
+      # - all: 모든 복제본이 받을 때까지 대기 (안정성 최대)
+      # - 1: 리더 파티션만 받으면 성공 (균형)
+      # - 0: 전송 후 응답 대기 안함 (성능 최대)
+      acks: all
+    
+    # Consumer 설정
     consumer:
-      group-id: novel-insight-group
+      # Consumer Group ID
+      group-id: ${KAFKA_GROUP_ID:novel-insight-group}
+      
+      # Key/Value 역직렬화 방식
       key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
       value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
-      auto-offset-reset: earliest  # 처음부터 읽기
+      
+      # auto-offset-reset: 오프셋이 없을 때 동작
+      # - earliest: 토픽의 처음부터 읽기
+      # - latest: 최신 메시지부터 읽기
+      auto-offset-reset: earliest
 
+# ===================================
+# JWT 토큰 설정 (커스텀 프로퍼티)
+# ===================================
 jwt:
-  secret: "v3rY-s3cr3t-k3y-f0r-n0v3l-1ns1ght-mvp-pr0j3ct-mUst-b3-l0ng" # 32글자 이상 길게!
-  issuer: "novel-insight"
-  access-duration-hour: 24 # 유효기간 24시간
+  # [보안] JWT 서명 비밀키 (최소 32자 이상 권장)
+  # 환경변수로 반드시 주입받아야 합니다 (기본값 없음)
+  # 예: openssl rand -base64 32
+  secret: ${JWT_SECRET}
+  
+  # JWT 발급자 (Issuer)
+  issuer: ${JWT_ISSUER:novel-insight}
+  
+  # 액세스 토큰 유효 시간 (시간 단위)
+  access-duration-hour: ${JWT_ACCESS_DURATION_HOUR:24}
+
+# ===================================
+# Python 분석 서비스 설정 (커스텀 프로퍼티)
+# ===================================
+python:
+  service:
+    # FastAPI 분석 서비스 URL
+    url: ${PYTHON_SERVICE_URL:http://localhost:8000}
+
+# ===================================
+# 서버 설정
+# ===================================
+server:
+  port: ${SERVER_PORT:8080}
+
+# ===================================
+# 로깅 설정
+# ===================================
+logging:
+  level:
+    # 루트 로거 레벨
+    root: ${LOGGING_LEVEL:INFO}
+    
+    # Hibernate SQL 로그 (show-sql과 별개)
+    org.hibernate.SQL: ${LOGGING_LEVEL:DEBUG}
+    
+    # Hibernate SQL 파라미터 로그
+    org.hibernate.type.descriptor.sql: ${LOGGING_LEVEL:TRACE}
+    
+    # 애플리케이션 패키지 로그
+    com.sparta.novel_insight: ${LOGGING_LEVEL:DEBUG}
+  
+  # 로그 파일 설정 (선택사항)
+  file:
+    name: ${LOG_FILE:logs/novel-insight.log}
+    max-size: 10MB
+    max-history: 30

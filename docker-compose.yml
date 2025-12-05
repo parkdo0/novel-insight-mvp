@@ -1,115 +1,247 @@
+# ===================================
+# Novel Insight MVP - Docker Compose 설정
+# ===================================
+# 이 파일은 로컬 개발 환경의 인프라를 구성합니다
+#
+# 사용법:
+#   1. 루트 디렉토리에 .env 파일 생성 (cp .env.example .env)
+#   2. .env 파일에 실제 비밀번호 입력
+#   3. docker-compose up -d 실행
+#
+# 서비스 목록:
+#   - novel-mysql: MySQL 8.0 데이터베이스
+#   - novel-redis: Redis (캐싱, 분산 락)
+#   - novel-rabbitmq: RabbitMQ (실시간 알림)
+#   - novel-zookeeper: Kafka 브로커 관리
+#   - novel-kafka: Kafka 이벤트 스트리밍
+#   - python-service: FastAPI 감정 분석 서비스
+# ===================================
+
 version: '3.8'
 
 services:
+  # ===================================
+  # MySQL 데이터베이스
+  # ===================================
   novel-mysql:
     image: mysql:8.0
     container_name: novel-mysql-container
     ports:
-      - "3306:3306"
+      - "3306:3306"  # 호스트:컨테이너
+    
+    # [보안] 환경 변수는 .env 파일에서 주입받습니다
     environment:
-      MYSQL_ROOT_PASSWORD: root1234!
-      MYSQL_DATABASE: novel_insight
-      MYSQL_USER: novel_user
-      MYSQL_PASSWORD: novel1234!
-      TZ: Asia/Seoul
+      # MySQL root 사용자 비밀번호
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      
+      # 생성할 데이터베이스 이름
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      
+      # 일반 사용자 계정
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      
+      # 타임존 설정
+      TZ: ${TZ:-Asia/Seoul}
+    
+    # 데이터 영속성: 컨테이너 삭제 시에도 데이터 보존
     volumes:
       - ./data/mysql:/var/lib/mysql
+    
+    # MySQL 설정
     command:
+      # 문자 인코딩: UTF-8 4바이트 (이모지 지원)
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
+      
+      # 성능 튜닝 (선택사항)
+      # - --max_connections=200  # 최대 동시 접속 수
+      # - --innodb_buffer_pool_size=1G  # InnoDB 버퍼 풀 크기
+    
     networks:
       - novel-net
+    
+    # 헬스 체크: MySQL이 준비될 때까지 대기
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # ▼▼▼ [도영 님이 작성할 부분] ▼▼▼
+  # ===================================
+  # Redis (캐싱, 분산 락)
+  # ===================================
   novel-redis:
     image: redis:alpine
     container_name: novel-redis-container
     ports:
       - "6379:6379"
+    
+    # Redis 설정 (선택사항)
+    # command: redis-server --requirepass ${REDIS_PASSWORD}  # 비밀번호 설정
+    
     networks:
       - novel-net
-  ### 여기를 채우세요 (image, container_name, ports, networks 필요) ###
+    
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ===================================
+  # RabbitMQ (메시지 큐)
+  # ===================================
   novel-rabbitmq:
-    image: rabbitmq:management # 관리자 화면(Web UI)이 포함된 버전
+    image: rabbitmq:management  # Management 플러그인 포함
     container_name: novel-rabbitmq-container
     ports:
-      - "5672:5672"   # 자바랑 통신하는 포트
-      - "15672:15672" # 관리자 웹 페이지 포트
+      - "5672:5672"   # AMQP 프로토콜 (애플리케이션 통신)
+      - "15672:15672" # Management UI (http://localhost:15672)
+    
+    # [보안] 환경 변수로 credentials 주입
     environment:
-      RABBITMQ_DEFAULT_USER: guest
-      RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_DEFAULT_USER: ${RABBITMQ_DEFAULT_USER:-guest}
+      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
+    
     networks:
       - novel-net
+    
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
-  # ========================================
-  # ★★★ Kafka 인프라 (로그 파이프라인용) ★★★
-  # ========================================
-
-  # 1️⃣ Zookeeper: Kafka 브로커들을 관리하는 "교통경찰"
+  # ===================================
+  # Zookeeper (Kafka 브로커 관리)
+  # ===================================
   novel-zookeeper:
-    image: confluentinc/cp-zookeeper:7.5.0  # Confluent 공식 이미지 (가장 안정적)
+    image: confluentinc/cp-zookeeper:7.5.0
     container_name: novel-zookeeper-container
     ports:
-      - "2181:2181"  # Zookeeper 기본 포트 (Kafka가 이 포트로 접속함)
+      - "2181:2181"  # Zookeeper 클라이언트 포트
+    
     environment:
-      # Zookeeper의 "사원 번호" (단일 서버는 1번)
+      # Zookeeper 클라이언트 포트
       ZOOKEEPER_CLIENT_PORT: 2181
-      # 하트비트 체크 간격 (2초마다 "살아있니?" 확인)
+      
+      # 하트비트 체크 간격 (밀리초)
+      # Zookeeper가 "살아있니?" 확인하는 주기
       ZOOKEEPER_TICK_TIME: 2000
+    
     networks:
       - novel-net
 
-  # 2️⃣ Kafka: 메시지를 저장하는 "고속도로 휴게소"
-  # ▼▼▼ [도영 님이 작성할 부분] ▼▼▼
+  # ===================================
+  # Kafka (이벤트 스트리밍 플랫폼)
+  # ===================================
   novel-kafka:
-    image: confluentinc/cp-kafka:7.5.0  # Zookeeper와 같은 버전 사용 (호환성)
+    image: confluentinc/cp-kafka:7.5.0
     container_name: novel-kafka-container
-    # 힌트 1: ports는 2개 필요 (9092: 외부 접속용, 29092: Docker 내부용)
+    
+    # 포트 매핑
     ports:
-      - "9092:9092"   # ← 외부 접속용 (내 PC → Kafka)
-      - "29092:29092" # ← Docker 내부용 (Python 컨테이너 → Kafka)
-
-    # 힌트 2: depends_on (Zookeeper가 먼저 떠야 함)
+      - "9092:9092"   # 외부 접속용 (호스트 → Kafka)
+      - "29092:29092" # 내부 접속용 (Docker 네트워크)
+    
+    # 의존성: Zookeeper가 먼저 시작되어야 함
     depends_on:
-      - novel-zookeeper  # ← Kafka는 Zookeeper 없이 못 뜸!
-
+      - novel-zookeeper
+    
     environment:
-      # [중요] Kafka 브로커 ID (여러 대 띄울 때 구분용, 단일 서버는 1번)
+      # [필수] Kafka 브로커 ID (클러스터 내 고유 번호)
       KAFKA_BROKER_ID: 1
-
-      # [필수] Zookeeper 주소 (Kafka가 "교통경찰"에게 보고하는 주소)
+      
+      # [필수] Zookeeper 주소 (Kafka가 메타데이터를 저장하는 곳)
       KAFKA_ZOOKEEPER_CONNECT: "novel-zookeeper:2181"
-
+      
       # [중요] 리스너 설정 (접속 경로 2가지)
       # - PLAINTEXT: Docker 내부 통신용 (Python ↔ Kafka)
-      # - PLAINTEXT_HOST: 외부 접속용 (내 PC ↔ Kafka)
+      # - PLAINTEXT_HOST: 외부 접속용 (호스트 PC ↔ Kafka)
       KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      
+      # [중요] 광고 리스너 (클라이언트가 연결할 주소)
+      # - PLAINTEXT://novel-kafka:29092: Docker 네트워크 내부
+      # - PLAINTEXT_HOST://localhost:9092: 외부 접속
       KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://novel-kafka:29092,PLAINTEXT_HOST://localhost:9092
+      
+      # 브로커 간 통신에 사용할 리스너
       KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
-
-      # [성능] 오프셋 파티션 개수 (로그 분산 저장 - 기본 1개)
+      
+      # [성능] Offset 토픽 복제 계수 (단일 브로커는 1)
+      # 프로덕션 환경에서는 3 이상 권장
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
-
-    # 힌트 3: networks (다른 서비스들과 같은 네트워크 사용)
-    networks:
-      - novel-net  # ← MySQL, Redis, RabbitMQ와 같은 네트워크 (서로 통신 가능!)
-
-  # ========================================
-  # ★★★ Python 분석 서비스 (Kafka Consumer + 감성 분석) ★★★
-  # ========================================
-  python-service:
-    build: ./python-service  # Dockerfile 위치
-    container_name: python-service-container
-    ports:
-      - "8000:8000"  # FastAPI 포트
-    depends_on:
-      - novel-kafka  # Kafka가 먼저 떠야 Consumer가 연결 가능
+    
     networks:
       - novel-net
-    environment:
-      - PYTHONUNBUFFERED=1  # 로그 즉시 출력
+    
+    healthcheck:
+      test: ["CMD", "kafka-broker-api-versions", "--bootstrap-server", "localhost:9092"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
+  # ===================================
+  # Python 분석 서비스 (FastAPI + KoNLPy)
+  # ===================================
+  python-service:
+    build:
+      context: ./python-service
+      dockerfile: Dockerfile
+    
+    container_name: python-service-container
+    
+    ports:
+      - "8000:8000"  # FastAPI 포트
+    
+    # 의존성: Kafka가 먼저 시작되어야 Consumer 연결 가능
+    depends_on:
+      - novel-kafka
+      - novel-mysql
+    
+    # [보안] 환경 변수 주입
+    # python-service/.env 파일에서 로드되거나
+    # 여기서 직접 지정 가능
+    environment:
+      # Python 로그 즉시 출력 (버퍼링 비활성화)
+      PYTHONUNBUFFERED: 1
+      
+      # Kafka 설정
+      KAFKA_BOOTSTRAP_SERVERS: novel-kafka:29092
+      KAFKA_TOPIC: novel-reviews
+      KAFKA_GROUP_ID: python-consumer-group
+      
+      # MySQL 설정
+      DB_HOST: novel-mysql
+      DB_PORT: 3306
+      DB_USER: ${MYSQL_USER}
+      DB_PASSWORD: ${MYSQL_PASSWORD}
+      DB_NAME: ${MYSQL_DATABASE}
+      
+      # 로그 레벨
+      LOG_LEVEL: INFO
+    
+    networks:
+      - novel-net
+    
+    # 재시작 정책: 실패 시 자동 재시작
+    restart: unless-stopped
+
+# ===================================
+# Docker 네트워크 정의
+# ===================================
 networks:
   novel-net:
     driver: bridge
+    # 브릿지 네트워크: 같은 네트워크의 컨테이너들끼리 서로 통신 가능
+    # 서비스 이름(novel-mysql, novel-kafka 등)으로 접근
+
+# ===================================
+# Docker 볼륨 정의 (선택사항)
+# ===================================
+# volumes:
+#   mysql-data:
+#     driver: local
+#   kafka-data:
+#     driver: local
