@@ -214,7 +214,10 @@ class ReviewController(
      * @return ResponseEntity<ReviewResponse> HTTP 응답 (200 OK + 리뷰 정보)
      */
     @PostMapping("/reviews")
-    fun writeReview(@RequestBody request: ReviewRequest): ResponseEntity<ReviewResponse> {
+    fun writeReview(
+        @RequestBody request: ReviewRequest,
+        @org.springframework.security.core.annotation.AuthenticationPrincipal user: com.sparta.novel_insight.security.UserPrincipal
+    ): ResponseEntity<ReviewResponse> {
         // 1단계: 소설 존재 여부 확인
         // novelRepository.findById(): Optional<Novel> 반환
         // orElseThrow: Optional이 비어있으면 예외 발생
@@ -261,8 +264,17 @@ class ReviewController(
         // 3단계: Review 엔티티 생성
         // Review 생성자에 필요한 파라미터 전달
         // - content: 이스케이프 처리된 안전한 내용
+        // - userId: 리뷰 작성자 ID
+        // - novelId: 소설 ID
+        // - rating: 기본 평점 3.0 (향후 ReviewRequest에 rating 필드 추가 필요)
         // - novel: 존재 확인된 소설 엔티티
-        val review = Review(content = safeContent, novel = novel)
+        val review = Review(
+            content = safeContent,
+            userId = user.id,
+            novelId = request.novelId,
+            rating = java.math.BigDecimal(3), // 기본 평점 3.0
+            novel = novel
+        )
 
         // 4단계: 리뷰 데이터베이스에 저장
         // reviewRepository.save(): JPA의 persist/merge 작업 수행

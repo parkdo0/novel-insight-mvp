@@ -90,9 +90,17 @@ class EpisodeController(
     fun createEpisode(@PathVariable novelId: Long, @RequestBody request: CreateEpisodeRequest, @AuthenticationPrincipal user: UserPrincipal): ResponseEntity<String> {
         val novel = novelRepository.findById(novelId).orElseThrow()
         if (novel.authorId != user.id) return ResponseEntity.status(403).body("본인의 소설에만 회차를 등록할 수 있습니다.")
+
+        // 다음 회차 번호 계산 (기존 에피소드 개수 + 1)
+        val nextEpisodeNumber = novel.episodes.size + 1
+
         val episode = Episode(
-            title = request.title, content = request.content,
-            price = if (request.isFree) 0 else 100, isFree = request.isFree, novel = novel
+            title = request.title,
+            content = request.content,
+            episodeNumber = nextEpisodeNumber,
+            price = if (request.isFree) 0 else 100,
+            isFree = request.isFree,
+            novel = novel
         )
         episodeRepository.save(episode)
         return ResponseEntity.ok("등록 완료")
