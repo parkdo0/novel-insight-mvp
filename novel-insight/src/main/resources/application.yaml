@@ -111,12 +111,24 @@ jwt:
   # 환경변수로 반드시 주입받아야 합니다 (기본값 없음)
   # 예: openssl rand -base64 32
   secret: ${JWT_SECRET}
-  
+
   # JWT 발급자 (Issuer)
   issuer: ${JWT_ISSUER:novel-insight}
-  
-  # 액세스 토큰 유효 시간 (시간 단위)
-  access-duration-hour: ${JWT_ACCESS_DURATION_HOUR:24}
+
+  # ===================================
+  # 실무 권장 토큰 유효기간 (Production Best Practices)
+  # ===================================
+  # Access Token: 짧게 유지 (15분 ~ 1시간)
+  # - 이유: 탈취되어도 피해 최소화 (자동 만료)
+  # - XSS 공격 시에도 짧은 시간만 악용 가능
+  # - 짧을수록 안전하지만, 너무 짧으면 사용자 불편
+  access-duration-hour: ${JWT_ACCESS_DURATION_HOUR:1}
+
+  # Refresh Token: 길게 유지 (7일 ~ 30일)
+  # - 이유: 사용자가 자주 로그인하지 않아도 됨 (편의성)
+  # - HttpOnly Cookie + DB 저장으로 보안 강화
+  # - 탈취 감지 시 즉시 무효화 가능 (DB 제어)
+  refresh-duration-day: ${JWT_REFRESH_DURATION_DAY:14}
 
 # ===================================
 # Python 분석 서비스 설정 (커스텀 프로퍼티)
