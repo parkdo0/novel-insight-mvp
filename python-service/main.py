@@ -1,5 +1,5 @@
 """
-Novel Insight - 리뷰 감성 분석 서비스
+Novel Insight - 리뷰 감성 분석 서비스 (Phase 5: BERT 통합)
 
 Kafka에서 실시간으로 리뷰 로그를 수집하여 감성 분석을 수행하고,
 분석 결과를 MySQL 데이터베이스에 저장하는 Python 마이크로서비스입니다.
@@ -7,11 +7,18 @@ Kafka에서 실시간으로 리뷰 로그를 수집하여 감성 분석을 수�
 주요 구성요소:
 1. FastAPI: REST API 서버 (헬스 체크, 수동 분석 API)
 2. Kafka Consumer: 백그라운드에서 리뷰 메시지 구독 및 처리
-3. Sentiment Analyzer: KoNLPy 기반 한국어 감성 분석 엔진
+3. Sentiment Analyzer: KoNLPy + BERT 기반 한국어 감성 분석 엔진 ⭐ Phase 5
 4. Database Manager: MySQL에 분석 결과 저장
 
+## Phase 5 주요 변경사항
+- BERT 기반 감성 분석 추가 (KcELECTRA 모델)
+- 7가지 감정 분류 (POSITIVE, NEGATIVE, NEUTRAL, JOY, SADNESS, ANGER, SURPRISE)
+- 배치 처리로 성능 최적화
+- Confidence Score 제공 (모델 확신도)
+- 환경 변수로 분석기 선택 가능 (USE_BERT=true/false)
+
 실행 흐름:
-[Spring Boot] --Kafka 메시지--> [이 서비스] --감성 분석--> [MySQL 저장]
+[Spring Boot] --Kafka 메시지--> [이 서비스] --BERT 감성 분석--> [MySQL 저장]
 """
 
 # ===== 표준 라이브러리 임포트 =====
@@ -36,11 +43,17 @@ from pydantic import BaseModel
 # config.py에서 환경 설정 싱글톤 가져오기
 from config import settings
 
-# sentiment_analyzer.py에서 감성 분석기 싱글톤 가져오기
-from sentiment_analyzer import get_analyzer
+# sentiment_analyzer.py에서 KoNLPy 감성 분석기 싱글톤 가져오기
+from sentiment_analyzer import get_analyzer as get_konlpy_analyzer
+
+# Phase 5: BERT 감성 분석기 싱글톤 가져오기
+from bert_sentiment_analyzer import get_bert_analyzer
 
 # database.py에서 데이터베이스 매니저 싱글톤 가져오기
 from database import get_db_manager
+
+# ===== 환경 변수 =====
+import os
 
 
 # ===== 로깅 설정 =====
@@ -73,10 +86,36 @@ logger = logging.getLogger(__name__)
 app = FastAPI(title="Novel Insight Analysis Service", version="1.0.0")
 
 
-# ===== 싱글톤 인스턴스 가져오기 =====
+# ===================================
+# Phase 5: 감성 분석기 선택 (환경 변수 기반)
+# ===================================
+# 환경 변수 USE_BERT로 분석기 선택 가능
+# - USE_BERT=true: BERT 분석기 사용 (높은 정확도, 느림)
+# - USE_BERT=false: KoNLPy 분석기 사용 (빠름, 낮은 정확도)
+# - 기본값: false (하위 호환성)
+USE_BERT = os.getenv("USE_BERT", "false").lower() == "true"
+
 # 감성 분석기 싱글톤 인스턴스
 # 애플리케이션 전체에서 하나의 인스턴스만 사용 (메모리 절약)
-analyzer = get_analyzer()
+if USE_BERT:
+    logger.info("🚀 Phase 5: BERT 감성 분석기 로딩 중...")
+    analyzer = get_bert_analyzer()
+    analyzer_type = "BERT (KcELECTRA)"
+
+    # BERT 모델 정보 로깅
+    model_info = analyzer.get_model_info()
+    logger.info(f"✅ BERT 모델 로딩 완료!")
+    logger.info(f"   - 모델: {model_info['model_name']}")
+    logger.info(f"   - 디바이스: {model_info['device']}")
+    logger.info(f"   - 파라미터: {model_info['parameter_count']:,}")
+    logger.info(f"   - 메모리: {model_info['model_size_mb']} MB")
+    logger.info(f"   - 감정 레이블: {', '.join(model_info['emotion_labels'])}")
+else:
+    logger.info("📚 KoNLPy 감성 분석기 사용 (Legacy)")
+    analyzer = get_konlpy_analyzer()
+    analyzer_type = "KoNLPy (Okt)"
+
+logger.info(f"감성 분석기: {analyzer_type}")
 
 # 데이터베이스 매니저 싱글톤 인스턴스
 # 데이터베이스 커넥션 풀을 공유하여 효율적으로 관리
@@ -121,20 +160,49 @@ def process_review_log(log_data: dict) -> bool:
 
         # 2단계: 감성 분석 수행
         # analyzer.analyze()는 dict 형태의 분석 결과 반환
+        #
+        # KoNLPy 결과:
         # {
         #     'sentiment': 'POSITIVE',
         #     'score': 75.5,
         #     'positive_count': 3,
         #     'negative_count': 0
         # }
+        #
+        # Phase 5: BERT 결과:
+        # {
+        #     'sentiment': 'JOY',
+        #     'confidence': 95.8,
+        #     'score': 95.8,
+        #     'polarity': 'positive',
+        #     'is_strong_emotion': True,
+        #     'all_scores': {...},
+        #     ...
+        # }
         analysis_result = analyzer.analyze(content)
 
-        # 분석 결과 로그 출력 (모니터링 용도)
-        logger.info(
-            f"분석 완료 - novelId:{novel_id}, "
-            f"sentiment:{analysis_result['sentiment']}, "
-            f"score:{analysis_result['score']}"
-        )
+        # Phase 5: 분석 결과 로그 출력 (모니터링 용도)
+        # BERT는 추가 정보 포함 (emotion, confidence)
+        if USE_BERT:
+            # BERT 분석 결과 로깅
+            emotion_info = f", emotion={analysis_result.get('sentiment', 'N/A')}"
+            confidence_info = f", confidence={analysis_result.get('confidence', 0):.1f}%"
+            strong_emotion_marker = " 🔥" if analysis_result.get('is_strong_emotion', False) else ""
+
+            logger.info(
+                f"[BERT] 분석 완료 - novelId:{novel_id}"
+                f"{emotion_info}"
+                f"{confidence_info}"
+                f", score:{analysis_result['score']:.2f}"
+                f"{strong_emotion_marker}"
+            )
+        else:
+            # KoNLPy 분석 결과 로깅 (기존 방식)
+            logger.info(
+                f"[KoNLPy] 분석 완료 - novelId:{novel_id}, "
+                f"sentiment:{analysis_result['sentiment']}, "
+                f"score:{analysis_result['score']:.2f}"
+            )
 
         # 3단계: 데이터베이스에 저장
         # save_analysis()는 저장 성공 시 생성된 레코드 ID 반환, 실패 시 None 반환

@@ -33,15 +33,26 @@ class ReviewAnalysis(Base):
     Python에서 감성 분석한 결과를 MySQL에 저장하기 위한 모델입니다.
     SQLAlchemy ORM을 사용하여 테이블을 정의합니다.
 
+    ## Phase 5 업데이트: BERT 기반 다중 감정 분류
+
     테이블 구조:
     - id: 기본키 (자동 증가)
     - novel_id: 소설 ID (인덱스)
     - author_id: 작가 ID (인덱스)
     - content: 리뷰 내용 (최대 1000자)
-    - sentiment: 감성 (POSITIVE/NEGATIVE/NEUTRAL)
+
+    ### 기존 컬럼 (KoNLPy 호환성 유지)
+    - sentiment: 기본 감성 (POSITIVE/NEGATIVE/NEUTRAL)
     - score: 감성 점수 (0-100)
-    - positive_count: 긍정 단어 개수
-    - negative_count: 부정 단어 개수
+    - positive_count: 긍정 단어 개수 (KoNLPy 전용)
+    - negative_count: 부정 단어 개수 (KoNLPy 전용)
+
+    ### Phase 5 신규 컬럼 (BERT 전용)
+    - confidence_score: BERT 모델의 확신도 (0-100)
+    - emotion: 세밀한 감정 (JOY, SADNESS, ANGER, SURPRISE, 또는 NULL)
+    - polarity: 극성 (positive, negative, neutral)
+    - is_strong_emotion: 강한 감정 여부 (Boolean)
+
     - analyzed_at: 분석 일시
     """
 
@@ -68,8 +79,13 @@ class ReviewAnalysis(Base):
     # 리뷰 전문을 저장 (최대 1000자로 제한)
     content = Column(String(1000), nullable=False)
 
+    # ===================================
+    # 기존 컬럼 (KoNLPy 호환성 유지)
+    # ===================================
+
     # 감성 분류 결과
     # POSITIVE (긍정), NEGATIVE (부정), NEUTRAL (중립) 중 하나
+    # BERT의 경우 emotion이 더 세밀한 분류를 제공
     sentiment = Column(String(20), nullable=False)
 
     # 감성 점수
@@ -77,12 +93,44 @@ class ReviewAnalysis(Base):
     # 0-100 사이의 값을 가짐
     score = Column(Float, nullable=False)
 
-    # 발견된 긍정 단어 개수
+    # 발견된 긍정 단어 개수 (KoNLPy 전용, BERT는 0)
     # default=0: 기본값 0
     positive_count = Column(Integer, default=0)
 
-    # 발견된 부정 단어 개수
+    # 발견된 부정 단어 개수 (KoNLPy 전용, BERT는 0)
     negative_count = Column(Integer, default=0)
+
+    # ===================================
+    # Phase 5 신규 컬럼 (BERT 전용)
+    # ===================================
+
+    # BERT 모델의 확신도 (0-100)
+    # BERT는 Softmax 확률을 제공하므로 얼마나 확신하는지 알 수 있음
+    # 예: confidence_score=95.8 → 모델이 95.8% 확신
+    # nullable=True: KoNLPy 분석 결과는 NULL
+    confidence_score = Column(Float, nullable=True)
+
+    # 세밀한 감정 분류 (BERT 전용)
+    # - JOY: 강한 긍정 (기쁨)
+    # - SADNESS: 실망, 슬픔
+    # - ANGER: 강한 부정 (분노)
+    # - SURPRISE: 놀람
+    # - NULL: 기본 감정만 있는 경우 (POSITIVE/NEGATIVE/NEUTRAL)
+    # nullable=True: 기본 감정만 있는 경우 NULL
+    emotion = Column(String(20), nullable=True)
+
+    # 극성 (positive, negative, neutral)
+    # sentiment와 emotion을 합쳐서 극성 판단
+    # 예: JOY → positive, ANGER → negative
+    polarity = Column(String(10), nullable=True)
+
+    # 강한 감정 여부 (Boolean)
+    # True: JOY, ANGER, SURPRISE (강한 감정)
+    # False: POSITIVE, NEGATIVE, SADNESS, NEUTRAL (약한 감정)
+    # WHY 이 컬럼이 필요한가?
+    # → 작가가 "강한 반응을 일으킨 에피소드"를 쉽게 필터링 가능
+    # → 예: WHERE is_strong_emotion = TRUE → 팬층 형성 or 큰 논란
+    is_strong_emotion = Column(Integer, default=0)  # MySQL Boolean = TINYINT(1)
 
     # 분석 일시
     # DateTime: 날짜/시간 타입
@@ -208,7 +256,11 @@ class DatabaseManager:
         analysis_result: Dict
     ) -> Optional[int]:
         """
-        감성 분석 결과를 데이터베이스에 저장
+        감성 분석 결과를 데이터베이스에 저장 (Phase 5 업데이트)
+
+        KoNLPy와 BERT 분석 결과를 모두 지원합니다.
+        - KoNLPy: positive_count, negative_count 포함
+        - BERT: confidence_score, emotion, polarity, is_strong_emotion 포함
 
         처리 단계:
         1. 세션 생성
@@ -222,6 +274,15 @@ class DatabaseManager:
             author_id: 작가 ID
             content: 리뷰 내용
             analysis_result: 감성 분석 결과 딕셔너리
+                {
+                    "sentiment": str,            # 필수
+                    "score": float,              # 필수
+                    "positive_count": int,       # KoNLPy 전용
+                    "negative_count": int,       # KoNLPy 전용
+                    "confidence": float,         # BERT 전용 (Phase 5)
+                    "polarity": str,             # BERT 전용 (Phase 5)
+                    "is_strong_emotion": bool    # BERT 전용 (Phase 5)
+                }
 
         Returns:
             Optional[int]: 저장된 레코드의 ID (실패 시 None)
@@ -230,6 +291,27 @@ class DatabaseManager:
         session = self.get_session()
 
         try:
+            # ===================================
+            # Phase 5: BERT 감정 분석 결과 처리
+            # ===================================
+            # sentiment가 7가지 감정 중 하나인 경우 emotion 컬럼에 저장
+            # 기본 감정 (POSITIVE/NEGATIVE/NEUTRAL)은 sentiment에만 저장
+            sentiment_value = analysis_result['sentiment']
+            emotion_value = None
+
+            # 세밀한 감정 (JOY, SADNESS, ANGER, SURPRISE)인 경우
+            if sentiment_value in ['JOY', 'SADNESS', 'ANGER', 'SURPRISE']:
+                emotion_value = sentiment_value
+
+                # sentiment 컬럼에는 기본 극성 저장 (Spring Boot 호환성)
+                # JOY → POSITIVE, ANGER/SADNESS → NEGATIVE, SURPRISE → NEUTRAL
+                if sentiment_value == 'JOY':
+                    sentiment_value = 'POSITIVE'
+                elif sentiment_value in ['ANGER', 'SADNESS']:
+                    sentiment_value = 'NEGATIVE'
+                elif sentiment_value == 'SURPRISE':
+                    sentiment_value = 'NEUTRAL'
+
             # ReviewAnalysis 객체 생성
             # ORM 객체를 생성하면 Python 객체로 다룰 수 있음
             analysis = ReviewAnalysis(
@@ -240,11 +322,19 @@ class DatabaseManager:
                 # MySQL 컬럼이 VARCHAR(1000)이므로 초과 시 에러 방지
                 content=content[:1000],
 
-                # 감성 분석 결과에서 필요한 필드 추출
-                sentiment=analysis_result['sentiment'],
+                # 기존 컬럼 (KoNLPy 호환성)
+                sentiment=sentiment_value,
                 score=analysis_result['score'],
-                positive_count=analysis_result['positive_count'],
-                negative_count=analysis_result['negative_count']
+                positive_count=analysis_result.get('positive_count', 0),
+                negative_count=analysis_result.get('negative_count', 0),
+
+                # Phase 5 신규 컬럼 (BERT 전용)
+                # .get() 메서드로 안전하게 추출 (없으면 None/0)
+                confidence_score=analysis_result.get('confidence'),
+                emotion=emotion_value,
+                polarity=analysis_result.get('polarity'),
+                is_strong_emotion=1 if analysis_result.get('is_strong_emotion', False) else 0
+
                 # analyzed_at은 default=datetime.now로 자동 설정됨
             )
 
@@ -260,7 +350,13 @@ class DatabaseManager:
             # 자동 생성된 id 값을 가져오기 위해 필요
             session.refresh(analysis)
 
-            logger.info(f"분석 결과 저장 완료: ID={analysis.id}")
+            # Phase 5 로깅: 감정 정보 포함
+            emotion_info = f", emotion={emotion_value}" if emotion_value else ""
+            logger.info(
+                f"분석 결과 저장 완료: ID={analysis.id}, "
+                f"sentiment={sentiment_value}{emotion_info}, "
+                f"score={analysis_result['score']:.2f}"
+            )
 
             # 생성된 레코드의 ID 반환
             return analysis.id
@@ -280,9 +376,10 @@ class DatabaseManager:
 
     def get_novel_statistics(self, novel_id: int) -> Dict:
         """
-        소설별 감성 분석 통계 조회
+        소설별 감성 분석 통계 조회 (Phase 5 업데이트)
 
         특정 소설에 대한 모든 리뷰의 감성 분석 통계를 계산합니다.
+        Phase 5에서는 7가지 감정 분석을 포함합니다.
 
         처리 단계:
         1. SQL 쿼리로 집계 (COUNT, SUM, AVG)
@@ -295,25 +392,49 @@ class DatabaseManager:
         Returns:
             Dict: 통계 정보
             {
+                # 기본 통계 (기존 호환성)
                 'total_reviews': 전체 리뷰 수,
                 'positive_rate': 긍정 비율 (%),
                 'negative_rate': 부정 비율 (%),
                 'neutral_rate': 중립 비율 (%),
-                'avg_score': 평균 감성 점수
+                'avg_score': 평균 감성 점수,
+
+                # Phase 5: 세밀한 감정 통계
+                'emotion_stats': {
+                    'joy_rate': 기쁨 비율 (%),
+                    'sadness_rate': 슬픔 비율 (%),
+                    'anger_rate': 분노 비율 (%),
+                    'surprise_rate': 놀람 비율 (%)
+                },
+                'strong_emotion_rate': 강한 감정 비율 (%),
+                'avg_confidence': 평균 확신도
             }
         """
         session = self.get_session()
 
         try:
-            # Raw SQL 쿼리 작성
+            # Raw SQL 쿼리 작성 (Phase 5: 감정 분석 추가)
             # SQLAlchemy의 text() 함수로 SQL 문자열을 쿼리 객체로 변환
             query = text("""
                 SELECT
+                    -- 기본 통계
                     COUNT(*) as total,
                     SUM(CASE WHEN sentiment = 'POSITIVE' THEN 1 ELSE 0 END) as positive,
                     SUM(CASE WHEN sentiment = 'NEGATIVE' THEN 1 ELSE 0 END) as negative,
                     SUM(CASE WHEN sentiment = 'NEUTRAL' THEN 1 ELSE 0 END) as neutral,
-                    AVG(score) as avg_score
+                    AVG(score) as avg_score,
+
+                    -- Phase 5: 세밀한 감정 통계
+                    SUM(CASE WHEN emotion = 'JOY' THEN 1 ELSE 0 END) as joy,
+                    SUM(CASE WHEN emotion = 'SADNESS' THEN 1 ELSE 0 END) as sadness,
+                    SUM(CASE WHEN emotion = 'ANGER' THEN 1 ELSE 0 END) as anger,
+                    SUM(CASE WHEN emotion = 'SURPRISE' THEN 1 ELSE 0 END) as surprise,
+
+                    -- Phase 5: 강한 감정 비율
+                    SUM(CASE WHEN is_strong_emotion = 1 THEN 1 ELSE 0 END) as strong_emotion,
+
+                    -- Phase 5: 평균 확신도 (BERT 전용)
+                    AVG(confidence_score) as avg_confidence
                 FROM review_analysis
                 WHERE novel_id = :novel_id
             """)
@@ -328,6 +449,7 @@ class DatabaseManager:
                 total = result[0]  # 전체 리뷰 수
 
                 return {
+                    # 기본 통계 (기존 호환성 유지)
                     'total_reviews': total,
 
                     # 긍정 비율 = (긍정 수 / 전체 수) * 100
@@ -342,7 +464,37 @@ class DatabaseManager:
 
                     # 평균 점수
                     # result[4]가 None일 수 있으므로 삼항 연산자로 처리
-                    'avg_score': round(result[4], 2) if result[4] else 0
+                    'avg_score': round(result[4], 2) if result[4] else 0,
+
+                    # ===================================
+                    # Phase 5: 세밀한 감정 통계
+                    # ===================================
+                    'emotion_stats': {
+                        # 기쁨 비율 (강한 긍정)
+                        'joy_rate': round((result[5] / total) * 100, 2),
+                        'joy_count': result[5],
+
+                        # 슬픔 비율 (실망, 아쉬움)
+                        'sadness_rate': round((result[6] / total) * 100, 2),
+                        'sadness_count': result[6],
+
+                        # 분노 비율 (강한 부정)
+                        'anger_rate': round((result[7] / total) * 100, 2),
+                        'anger_count': result[7],
+
+                        # 놀람 비율 (반전, 예상 밖)
+                        'surprise_rate': round((result[8] / total) * 100, 2),
+                        'surprise_count': result[8]
+                    },
+
+                    # 강한 감정 비율 (JOY + ANGER + SURPRISE)
+                    # WHY? 작가에게 "강한 반응을 일으킨 정도" 제공
+                    'strong_emotion_rate': round((result[9] / total) * 100, 2),
+                    'strong_emotion_count': result[9],
+
+                    # 평균 확신도 (BERT 전용, KoNLPy는 NULL이므로 None)
+                    # WHY? 모델이 얼마나 확신하는지 → 신뢰도 지표
+                    'avg_confidence': round(result[10], 2) if result[10] else None
                 }
 
             # 결과가 없는 경우 (해당 소설의 리뷰가 없음)
@@ -351,7 +503,20 @@ class DatabaseManager:
                 'positive_rate': 0,
                 'negative_rate': 0,
                 'neutral_rate': 0,
-                'avg_score': 0
+                'avg_score': 0,
+                'emotion_stats': {
+                    'joy_rate': 0,
+                    'joy_count': 0,
+                    'sadness_rate': 0,
+                    'sadness_count': 0,
+                    'anger_rate': 0,
+                    'anger_count': 0,
+                    'surprise_rate': 0,
+                    'surprise_count': 0
+                },
+                'strong_emotion_rate': 0,
+                'strong_emotion_count': 0,
+                'avg_confidence': None
             }
 
         except Exception as e:
