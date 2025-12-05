@@ -19,6 +19,13 @@ class Novel(
     @Lob
     var description: String? = null,
 
+    @Column(nullable = false)
+    var genre: String = "판타지", // 장르 (판타지, 로맨스, 무협, 현대물 등)
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    var status: NovelStatus = NovelStatus.ONGOING, // 연재 상태
+
     var viewCount: Long = 0, // 전체 조회수
 
     var createdAt: LocalDateTime = LocalDateTime.now(),

@@ -5,6 +5,8 @@ import com.sparta.novel_insight.domain.Notification
 import com.sparta.novel_insight.domain.NotificationType
 import com.sparta.novel_insight.repository.NotificationRepository
 import org.slf4j.LoggerFactory
+import org.springframework.data.domain.Page
+import org.springframework.data.domain.Pageable
 import org.springframework.messaging.simp.SimpMessagingTemplate
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -143,6 +145,18 @@ class NotificationService(
     @Transactional(readOnly = true)
     fun getUnreadCount(recipient: Member): Long {
         return notificationRepository.countByRecipientAndIsReadFalse(recipient)
+    }
+
+    /**
+     * 모든 알림 조회 (페이지네이션)
+     *
+     * @param recipient 알림 수신자
+     * @param pageable 페이지네이션 정보
+     * @return 알림 페이지
+     */
+    @Transactional(readOnly = true)
+    fun getAllNotifications(recipient: Member, pageable: Pageable): Page<Notification> {
+        return notificationRepository.findAllByRecipient(recipient, pageable)
     }
 
     /**
