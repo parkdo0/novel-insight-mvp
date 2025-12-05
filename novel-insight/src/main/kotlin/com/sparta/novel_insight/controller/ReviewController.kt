@@ -106,7 +106,53 @@ class ReviewController(
      * - API 응답 시간에 영향 없음
      * - 실패 시 로그만 출력 (리뷰 저장은 성공)
      */
-    private val kafkaProducerService: KafkaProducerService
+    private val kafkaProducerService: KafkaProducerService,
+
+    /**
+     * NotificationService 의존성 주입 (★ Phase 2: WebSocket 알림 시스템)
+     *
+     * WebSocket + STOMP 기반 실시간 알림 시스템입니다.
+     * 리뷰 작성 시 작가에게 즉각적인 알림을 전송합니다.
+     *
+     * WHY NotificationService 추가?
+     * - 기존 RabbitMQ: Legacy 알림 시스템 (Phase 1, 점진적 마이그레이션 예정)
+     * - NotificationService: 신규 WebSocket 기반 알림 (Phase 2, Production-ready)
+     *
+     * 차이점:
+     * 1. RabbitProducer (Legacy):
+     *    - 단순 메시지 전송 (메시지 큐)
+     *    - 별도 Consumer 필요
+     *    - DB 저장 없음 (휘발성)
+     *
+     * 2. NotificationService (신규):
+     *    - Dual Write: DB 저장 + WebSocket 발송
+     *    - 오프라인 알림 지원 (DB 영속성)
+     *    - 알림 관리 API 제공 (읽음 처리, 조회 등)
+     *    - 프론트엔드 실시간 업데이트
+     *
+     * 마이그레이션 전략:
+     * - 현재: RabbitProducer + NotificationService 병행 운영
+     * - 향후: NotificationService로 통합 (RabbitProducer 제거)
+     */
+    private val notificationService: com.sparta.novel_insight.service.NotificationService,
+
+    /**
+     * MemberRepository 의존성 주입 (★ Phase 2: 알림 수신자 조회)
+     *
+     * 알림을 받을 작가(Member)를 조회하는 Repository입니다.
+     *
+     * WHY 필요한가?
+     * - notificationService.sendNotification()은 Member 엔티티를 파라미터로 받음
+     * - novel.authorId(Long)로 Member 엔티티 조회 필요
+     * - 알림 발송 전 작가 존재 여부 확인
+     *
+     * 사용 흐름:
+     * 1. 리뷰 작성 (novelist A의 소설)
+     * 2. novel.authorId로 작가 조회
+     * 3. NotificationService로 작가에게 알림 전송
+     * 4. WebSocket 구독 중이면 실시간 수신
+     */
+    private val memberRepository: com.sparta.novel_insight.repository.MemberRepository
 ) {
 
     /**
@@ -264,7 +310,83 @@ class ReviewController(
             reviewContent = safeContent
         )
 
-        // 7단계: HTTP 응답 반환
+        // ★★★ 7단계: WebSocket 실시간 알림 발송 (Phase 2 추가) ★★★
+        // NotificationService를 통한 작가 알림 전송
+        //
+        // WHY 이 시점에 알림 발송?
+        // 1. 리뷰 저장 완료 (review.id 생성됨)
+        // 2. 모든 비즈니스 로직 성공 (RabbitMQ, Kafka 전송 완료)
+        // 3. 트랜잭션 커밋 전 실행 (실패 시 롤백 가능)
+        //
+        // 알림 발송 흐름:
+        // 1. 작가(Member) 조회: novel.authorId로 작가 엔티티 가져오기
+        // 2. 알림 메시지 생성: NotificationType.NEW_REVIEW 템플릿 사용
+        // 3. NotificationService.sendNotification() 호출
+        // 4. DB 저장 + WebSocket 발송 (Dual Write)
+        // 5. 작가가 온라인이면 즉시 브라우저 알림
+        try {
+            // 작가 조회
+            // memberRepository.findById(): 작가 Member 엔티티 조회
+            // novel.authorId: 소설 작가의 회원 ID
+            // orElse(null): 작가가 없으면 null 반환 (탈퇴한 회원 등)
+            //
+            // WHY orElse(null)?
+            // - 작가 탈퇴 시에도 리뷰 저장은 성공해야 함
+            // - 알림 발송 실패가 리뷰 작성을 막으면 안 됨
+            // - null이면 알림 발송 스킵 (try-catch로 안전 처리)
+            val author = memberRepository.findById(novel.authorId).orElse(null)
+
+            // 알림 발송 (작가가 존재하는 경우만)
+            if (author != null) {
+                // 리뷰 작성자 닉네임 추출
+                // request에는 reviewerId가 없으므로 현재는 "독자" 고정
+                // TODO: ReviewRequest DTO에 writerId 추가 또는 @AuthenticationPrincipal 사용
+                val reviewerNickname = "독자" // 임시 닉네임 (향후 개선 필요)
+
+                // 알림 메시지 생성
+                // NotificationType.NEW_REVIEW.getTemplate():
+                // - "독자님이 '소설제목'에 리뷰를 남겼습니다"
+                // - 템플릿 파라미터: nickname, novelTitle
+                val message = com.sparta.novel_insight.domain.NotificationType.NEW_REVIEW.getTemplate(
+                    mapOf(
+                        "nickname" to reviewerNickname,
+                        "novelTitle" to novel.title
+                    )
+                )
+
+                // NotificationService로 알림 발송
+                // 파라미터:
+                // - type: NEW_REVIEW (알림 타입)
+                // - recipient: author (수신자 - 작가)
+                // - sender: null (발신자 정보 없음, 향후 개선 필요)
+                // - content: 생성된 메시지
+                // - relatedId: review.id (리뷰 상세 페이지 이동용)
+                //
+                // 내부 동작:
+                // 1. DB 저장: notification 테이블에 INSERT
+                // 2. WebSocket 발송: /topic/notifications/{authorId}로 메시지 전송
+                // 3. 작가가 구독 중이면 실시간 수신
+                notificationService.sendNotification(
+                    type = com.sparta.novel_insight.domain.NotificationType.NEW_REVIEW,
+                    recipient = author,
+                    sender = null, // 향후 리뷰 작성자 Member로 변경 필요
+                    content = message,
+                    relatedId = review.id // 프론트엔드에서 /novels/{novelId}/reviews/{reviewId} 이동
+                )
+            }
+        } catch (e: Exception) {
+            // 알림 발송 실패 시 로그만 출력 (리뷰 저장은 성공 유지)
+            // WHY 예외를 먹어버리는가?
+            // - 알림 시스템 장애가 리뷰 작성을 막으면 안 됨
+            // - 사용자 경험 우선: 리뷰는 반드시 저장되어야 함
+            // - 알림은 부가 기능 (Nice-to-have)
+            // - 오프라인 사용자는 나중에 알림 조회 가능 (DB 저장 완료)
+            println("알림 발송 실패: ${e.message}")
+            // TODO: 실무에서는 SLF4J Logger 사용
+            // logger.error("리뷰 알림 발송 실패: novelId=${novel.id}, authorId=${novel.authorId}", e)
+        }
+
+        // 8단계: HTTP 응답 반환
         // ResponseEntity.ok(): 200 OK 상태 코드 + 바디
         // ReviewResponse.from(review): Entity → DTO 변환 (팩토리 메서드)
         //
