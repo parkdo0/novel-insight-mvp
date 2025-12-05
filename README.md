@@ -2,6 +2,10 @@
 
 **웹소설 플랫폼 작가를 위한 실시간 독자 반응 분석 시스템**
 
+[![Phase](https://img.shields.io/badge/Phase-2%20Complete-success)](https://github.com/parkdo0/novel-insight-mvp)
+[![Stack](https://img.shields.io/badge/Spring%20Boot-3.x-brightgreen)](https://spring.io/projects/spring-boot)
+[![Kotlin](https://img.shields.io/badge/Kotlin-1.9-blue)](https://kotlinlang.org/)
+
 ---
 
 ## 📋 프로젝트 개요
@@ -10,9 +14,11 @@
 
 ### 핵심 기능
 
-1. **실시간 감성 분석**: 리뷰 작성 시 Kafka를 통해 Python 분석 엔진으로 전달하여 긍정/부정/중립 자동 판별
-2. **작가 대시보드**: 소설별/작가별 독자 반응 통계 제공 (긍정률, 부정률, 평균 점수 등)
-3. **이벤트 스트리밍**: Kafka 기반 확장 가능한 데이터 파이프라인
+1. **✅ 실시간 감성 분석**: 리뷰 작성 시 Kafka를 통해 Python 분석 엔진으로 전달하여 긍정/부정/중립 자동 판별
+2. **✅ 작가 대시보드**: 소설별/작가별 독자 반응 통계 제공 (긍정률, 부정률, 평균 점수 등)
+3. **✅ 이벤트 스트리밍**: Kafka 기반 확장 가능한 데이터 파이프라인
+4. **✅ 프로덕션급 인증**: HttpOnly Cookie + Refresh Token으로 XSS/CSRF 방어
+5. **✅ WebSocket 실시간 알림**: 리뷰/댓글 작성 시 작가에게 즉시 알림 전송 (Phase 2 완료)
 
 ---
 
@@ -21,9 +27,11 @@
 ```
 [사용자] → [Spring Boot] → [Kafka] → [Python] → [MySQL]
               ↓                          ↓
-          [RabbitMQ]                 [감성 분석]
+          [WebSocket]                [감성 분석]
               ↓                          ↓
-          [작가 알림]              [통계 저장]
+         [실시간 알림]              [통계 저장]
+              ↓
+          [작가 대시보드]
 ```
 
 ### 기술 스택
@@ -31,7 +39,8 @@
 | Layer | Technology |
 |-------|------------|
 | **Backend** | Spring Boot 3, Kotlin, JPA, QueryDSL |
-| **Security** | Spring Security, JWT |
+| **Security** | Spring Security, JWT, HttpOnly Cookie |
+| **Real-time** | WebSocket, STOMP, SockJS |
 | **Messaging** | Kafka, RabbitMQ |
 | **Analysis** | Python 3.9, FastAPI, KoNLPy (Okt) |
 | **Database** | MySQL 8.0, Redis |
@@ -98,11 +107,41 @@ curl http://localhost:8000/health
 
 ## 📡 API 명세
 
+### 인증 (Phase 1 완료)
+
+#### 회원가입
+```bash
+POST /signup
+Content-Type: application/json
+
+{
+  "email": "test@test.com",
+  "password": "test1234!",
+  "nickname": "작가1"
+}
+```
+
+#### 로그인 (HttpOnly Cookie)
+```bash
+POST /login
+Content-Type: application/json
+
+{
+  "email": "test@test.com",
+  "password": "test1234!"
+}
+
+# 응답 헤더
+Set-Cookie: accessToken=...; HttpOnly; Secure; SameSite=Strict
+Set-Cookie: refreshToken=...; HttpOnly; Secure; SameSite=Strict
+```
+
 ### 리뷰 작성
 
 ```bash
 POST /reviews
 Content-Type: application/json
+Cookie: accessToken=...
 
 {
   "novelId": 1,
@@ -112,15 +151,102 @@ Content-Type: application/json
 
 **처리 흐름:**
 1. DB에 리뷰 저장
-2. RabbitMQ로 작가 알림 전송
-3. Kafka로 로그 전송
-4. Python이 감성 분석 후 MySQL에 저장
+2. RabbitMQ로 작가 알림 전송 (Legacy)
+3. **WebSocket으로 실시간 알림 발송** ⭐ (Phase 2)
+4. Kafka로 로그 전송
+5. Python이 감성 분석 후 MySQL에 저장
+
+### 실시간 알림 API (Phase 2 완료 ⭐)
+
+#### 미확인 알림 조회
+```bash
+GET /api/notifications/unread
+Cookie: accessToken=...
+
+# 응답 예시
+[
+  {
+    "id": 123,
+    "type": "NEW_REVIEW",
+    "content": "독자님이 '환생한 검성'에 리뷰를 남겼습니다",
+    "relatedId": 456,
+    "isRead": false,
+    "createdAt": "2025-12-05T14:30:45",
+    "sender": {
+      "id": 789,
+      "nickname": "독자"
+    }
+  }
+]
+```
+
+#### 알림 개수 조회 (뱃지)
+```bash
+GET /api/notifications/unread-count
+Cookie: accessToken=...
+
+# 응답
+{
+  "count": 5
+}
+```
+
+#### 알림 읽음 처리
+```bash
+# 단일 알림
+PUT /api/notifications/{id}/read
+Cookie: accessToken=...
+
+# 전체 알림
+PUT /api/notifications/read-all
+Cookie: accessToken=...
+```
+
+#### 전체 알림 조회 (페이지네이션)
+```bash
+GET /api/notifications?page=0&size=20
+Cookie: accessToken=...
+
+# 응답
+{
+  "content": [...],
+  "totalElements": 150,
+  "totalPages": 8,
+  "first": true,
+  "last": false
+}
+```
+
+### WebSocket 연결 (프론트엔드)
+
+```javascript
+// SockJS + STOMP 클라이언트 연결
+const socket = new SockJS('http://localhost:8080/ws');
+const stompClient = Stomp.over(socket);
+
+stompClient.connect({}, (frame) => {
+  console.log('Connected: ' + frame);
+
+  // 사용자별 알림 구독
+  stompClient.subscribe(`/topic/notifications/${userId}`, (message) => {
+    const notification = JSON.parse(message.body);
+    console.log('New notification:', notification);
+
+    // 브라우저 알림 표시
+    showBrowserNotification(notification);
+
+    // 뱃지 업데이트
+    updateNotificationBadge();
+  });
+});
+```
 
 ### 작가 인사이트 조회
 
 ```bash
 # 소설별 통계
 GET /api/insights/novels/{novelId}
+Cookie: accessToken=...
 
 # 응답 예시
 {
@@ -137,6 +263,7 @@ GET /api/insights/novels/{novelId}
 ```bash
 # 작가별 통계
 GET /api/insights/authors/{authorId}
+Cookie: accessToken=...
 
 {
   "authorId": 1,
@@ -157,26 +284,75 @@ curl -X POST http://localhost:8080/signup \
   -H "Content-Type: application/json" \
   -d '{"email":"test@test.com","password":"test1234!","nickname":"작가1"}'
 
-# 2. 로그인
+# 2. 로그인 (쿠키 저장)
 curl -X POST http://localhost:8080/login \
   -H "Content-Type: application/json" \
-  -d '{"email":"test@test.com","password":"test1234!"}'
+  -d '{"email":"test@test.com","password":"test1234!"}' \
+  -c cookies.txt
 
 # 3. 리뷰 작성
 curl -X POST http://localhost:8080/reviews \
   -H "Content-Type: application/json" \
+  -b cookies.txt \
   -d '{"novelId":1,"content":"완전 재미있어요!"}'
 
-# 4. Python 로그 확인 (감성 분석 결과)
+# 4. 알림 확인 (WebSocket 실시간 수신 + REST API 조회)
+curl http://localhost:8080/api/notifications/unread \
+  -b cookies.txt
+
+# 5. Python 로그 확인 (감성 분석 결과)
 docker compose logs -f python-service | grep "분석 완료"
 
-# 5. 통계 조회
-curl http://localhost:8080/api/insights/novels/1
+# 6. 통계 조회
+curl http://localhost:8080/api/insights/novels/1 \
+  -b cookies.txt
 ```
 
 ---
 
 ## 🔧 개발 가이드
+
+### WebSocket 실시간 알림 시스템 (Phase 2 ⭐)
+
+**아키텍처:**
+```
+[리뷰/댓글 작성] → [NotificationService]
+                         ↓
+                    ┌─────────┬─────────┐
+                    ↓         ↓         ↓
+               [DB 저장] [WebSocket] [로깅]
+                    ↓         ↓
+              [영속성]   [실시간 전송]
+                    ↓         ↓
+            [오프라인 조회] [온라인 수신]
+```
+
+**주요 컴포넌트:**
+```
+src/main/kotlin/com/sparta/novel_insight/
+├── config/
+│   └── WebSocketConfig.kt           # STOMP 설정
+├── controller/
+│   └── NotificationController.kt    # 알림 REST API
+├── service/
+│   └── NotificationService.kt       # Dual Write 전략
+├── domain/
+│   ├── Notification.kt              # 알림 엔티티
+│   └── NotificationType.kt          # 알림 타입
+└── repository/
+    └── NotificationRepository.kt    # 최적화된 쿼리
+```
+
+**Dual Write 전략:**
+- **DB 저장**: 오프라인 사용자 지원, 알림 히스토리
+- **WebSocket 발송**: 실시간 브라우저 알림
+- **Trade-off**: Write 2회 vs UX 대폭 향상
+
+**성능 최적화:**
+- Composite Index: `(recipient_id, is_read, created_at)`
+- Lazy Loading: Member 관계
+- Pagination: Top 20, Page 기반
+- Bulk Operations: 전체 읽음 처리
 
 ### Python 감성 분석 엔진
 
@@ -199,15 +375,26 @@ python-service/
 ```
 src/main/kotlin/com/sparta/novel_insight/
 ├── controller/
-│   ├── ReviewController.kt      # 리뷰 API
-│   └── InsightController.kt     # 인사이트 API
+│   ├── ReviewController.kt          # 리뷰 API + 알림 통합
+│   ├── EpisodeController.kt         # 댓글 API + 알림 통합
+│   ├── InsightController.kt         # 인사이트 API
+│   ├── NotificationController.kt    # 알림 REST API (Phase 2)
+│   └── AuthController.kt            # 인증 API (Phase 1)
 ├── service/
-│   ├── KafkaProducerService.kt  # Kafka 전송
-│   └── InsightService.kt        # 통계 조회
+│   ├── KafkaProducerService.kt      # Kafka 전송
+│   ├── InsightService.kt            # 통계 조회
+│   ├── NotificationService.kt       # 알림 발송 (Phase 2)
+│   └── TokenService.kt              # JWT 토큰 (Phase 1)
 ├── domain/
-│   └── ReviewAnalysis.kt        # 분석 결과 Entity
-└── repository/
-    └── ReviewAnalysisRepository.kt
+│   ├── ReviewAnalysis.kt            # 분석 결과 Entity
+│   ├── Notification.kt              # 알림 Entity (Phase 2)
+│   └── NotificationType.kt          # 알림 타입 (Phase 2)
+├── repository/
+│   ├── ReviewAnalysisRepository.kt
+│   └── NotificationRepository.kt    # 알림 Repository (Phase 2)
+└── config/
+    ├── SecurityConfig.kt            # Spring Security (Phase 1)
+    └── WebSocketConfig.kt           # WebSocket + STOMP (Phase 2)
 ```
 
 ---
@@ -230,6 +417,13 @@ docker compose logs -f python-service
 ### RabbitMQ 관리 페이지
 
 http://localhost:15672 (guest/guest)
+
+### WebSocket 연결 상태 확인
+
+```bash
+# Spring Boot 로그에서 WebSocket 연결 확인
+docker compose logs novel-insight | grep "WebSocket"
+```
 
 ---
 
@@ -255,6 +449,16 @@ docker compose restart python-service
 docker compose logs python-service
 ```
 
+### WebSocket 연결 실패
+
+```bash
+# CORS 설정 확인 (WebSocketConfig.kt)
+# 허용된 Origin: http://localhost:5173, http://localhost, http://127.0.0.1
+
+# SockJS fallback 확인
+# 브라우저 콘솔: SockJS connection established
+```
+
 ### MySQL 테이블 확인
 
 ```bash
@@ -264,16 +468,101 @@ docker exec -it novel-mysql-container mysql -u novel_user -p
 USE novel_insight;
 SHOW TABLES;
 SELECT * FROM review_analysis LIMIT 10;
+SELECT * FROM notification LIMIT 10;  # Phase 2 추가
 ```
 
 ---
 
-## 📈 확장 가능성
+## 📈 구현 로드맵
 
-1. **Kafka 파티셔닝**: 소설 ID 기반 파티션 분산으로 처리 속도 향상
-2. **ML 모델 적용**: BERT 기반 한국어 감성 분석 모델로 정확도 개선
-3. **실시간 대시보드**: Grafana + Prometheus로 메트릭 시각화
-4. **작가 알림**: WebSocket 기반 실시간 알림
+### ✅ Phase 1: 프로덕션급 인증 시스템 (완료)
+- HttpOnly Cookie + Refresh Token
+- XSS/CSRF 공격 방어
+- Token rotation 및 자동 갱신
+- 포괄적인 보안 문서화
+
+**커밋**: `694cdfa - Feat: Implement production-ready authentication with HttpOnly Cookie + Refresh Token`
+
+### ✅ Phase 2: WebSocket 실시간 알림 시스템 (완료)
+- STOMP over WebSocket
+- Dual Write 전략 (DB + WebSocket)
+- 알림 관리 REST API
+- 리뷰/댓글 작성 시 실시간 알림
+- 성능 최적화 (Composite Index, Pagination)
+
+**커밋**: `933ee13 - Feat: Implement WebSocket real-time notification system (Phase 2)`
+
+**주요 기능:**
+- 실시간 브라우저 알림
+- 미확인 알림 뱃지
+- 알림 히스토리 조회
+- 읽음 처리 (단일/전체)
+
+### 🔄 Phase 3: Kafka Partitioning (진행 예정)
+- Novel ID 기반 파티션 분산
+- 같은 소설 이벤트 순서 보장
+- Consumer Group 병렬 처리
+- 처리 속도 향상
+
+### 📊 Phase 4: Grafana + Prometheus (진행 예정)
+- 알림 발송 성공/실패율 모니터링
+- WebSocket 연결 수 추적
+- API 응답 시간 대시보드
+- Kafka lag 모니터링
+
+### 🤖 Phase 5: BERT 한국어 감성 분석 (진행 예정)
+- KoNLPy → BERT 마이그레이션
+- 감성 분석 정확도 개선
+- 다중 감정 분류 (기쁨, 슬픔, 분노 등)
+- 작가 대시보드 인사이트 강화
+
+---
+
+## 🎯 프로젝트 특징
+
+### 1. Production-Ready 코드
+- 모든 클래스/메서드에 **WHY** 설명 포함
+- 설계 결정 및 Trade-off 명시
+- 성능 최적화 전략 문서화
+- 에러 처리 철학 명확화
+
+### 2. 보안 우선 설계
+- HttpOnly Cookie로 XSS 방어
+- Refresh Token으로 탈취 피해 최소화
+- CORS 정책 엄격 적용
+- SQL Injection 방어 (JPA)
+
+### 3. 확장 가능한 아키텍처
+- MSA 기반 서비스 분리
+- Kafka 이벤트 스트리밍
+- WebSocket 실시간 통신
+- Docker Compose 인프라
+
+### 4. 성능 최적화
+- Composite Index로 쿼리 최적화
+- Redis 캐싱 (조회수, 세션)
+- Lazy Loading으로 불필요한 JOIN 방지
+- Pagination으로 메모리 절약
+
+---
+
+## 📚 참고 문서
+
+### 아키텍처 결정 기록 (ADR)
+
+#### Phase 1: HttpOnly Cookie 선택 이유
+- **문제**: JWT를 localStorage에 저장 시 XSS 취약
+- **결정**: HttpOnly Cookie + Refresh Token
+- **근거**: 브라우저가 자동 관리, JavaScript 접근 불가
+
+#### Phase 2: Dual Write 전략 선택 이유
+- **문제**: 오프라인 사용자는 WebSocket만으로 알림 수신 불가
+- **결정**: DB 저장 + WebSocket 발송
+- **근거**: UX > 성능 (Write 2회 허용)
+
+#### Kafka vs RabbitMQ
+- **Kafka**: 데이터 파이프라인, 대용량 로그, 영속성
+- **RabbitMQ**: 실시간 알림, 짧은 메시지 (Legacy, 점진적 제거 예정)
 
 ---
 
@@ -283,5 +572,17 @@ MIT License
 
 ---
 
-**개발자:** 박도영
-**목적:** 문피아 면접 대비 프로젝트
+## 👨‍💻 개발자
+
+**박도영**
+**목적**: 문피아 면접 대비 프로젝트
+**브랜치**: `claude/moonpia-interview-prep-01HxdBgkUxxXm6XCVqVU2yxE`
+
+---
+
+## 🔗 관련 링크
+
+- [Spring WebSocket 공식 문서](https://docs.spring.io/spring-framework/reference/web/websocket.html)
+- [STOMP Protocol](https://stomp.github.io/)
+- [Kafka Documentation](https://kafka.apache.org/documentation/)
+- [KoNLPy 한국어 NLP](https://konlpy.org/)
