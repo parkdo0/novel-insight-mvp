@@ -1,40 +1,96 @@
-HELP.md
+## ===================================
+## Spring Boot / Gradle 프로젝트
+## ===================================
+#
+## Gradle 빌드 디렉토리
+#HELP.md
+#.gradle
+#build/
+#!gradle/wrapper/gradle-wrapper.jar
+#!**/src/main/**/build/
+#!**/src/test/**/build/
+#
+## ===================================
+## 🔐 환경 변수 및 민감 정보 (절대 커밋 금지!)
+## ===================================
+#.env
+#.env.local
+#.env.*.local
+#application-local.yaml
+#application-local.yml
+#application-dev.yaml
+#application-dev.yml
+#application-prod.yaml
+#application-prod.yml
+#application-secret.yaml
+#application-secret.yml
+#
+## ===================================
+## IDE 설정 파일
+## ===================================
+#
+#### IntelliJ IDEA ###
+#.idea
+#*.iws
+#*.iml
+#*.ipr
+#out/
+#!**/src/main/**/out/
+#!**/src/test/**/out/
+#
+#### Eclipse (STS) ###
+#.apt_generated
+#.classpath
+#.factorypath
+#.project
+#.settings
+#.springBeans
+#.sts4-cache
+#bin/
+#!**/src/main/**/bin/
+#!**/src/test/**/bin/
+#
+#### NetBeans ###
+#/nbproject/private/
+#/nbbuild/
+#/dist/
+#/nbdist/
+#/.nb-gradle/
+#
+#### VS Code ###
+#.vscode/
+#*.code-workspace
+#
+## ===================================
+## Kotlin 관련
+## ===================================
+#.kotlin
+#*.kt.swp
+#
+## ===================================
+## 로그 파일
+## ===================================
+#logs/
+#*.log
+#*.log.*
+#
+## ===================================
+## 운영체제 생성 파일
+## ===================================
+#.DS_Store
+#Thumbs.db
+#
+## ===================================
+## 임시 파일
+## ===================================
+#*.tmp
+#*.bak
+#*.swp
+#*~
+#
+## ===================================
+## 데이터베이스 파일 (H2 등)
+## ===================================
+#*.db
+#*.h2.db
 .gradle
-build/
-!gradle/wrapper/gradle-wrapper.jar
-!**/src/main/**/build/
-!**/src/test/**/build/
-
-### STS ###
-.apt_generated
-.classpath
-.factorypath
-.project
-.settings
-.springBeans
-.sts4-cache
-bin/
-!**/src/main/**/bin/
-!**/src/test/**/bin/
-
-### IntelliJ IDEA ###
-.idea
-*.iws
-*.iml
-*.ipr
-out/
-!**/src/main/**/out/
-!**/src/test/**/out/
-
-### NetBeans ###
-/nbproject/private/
-/nbbuild/
-/dist/
-/nbdist/
-/.nb-gradle/
-
-### VS Code ###
-.vscode/
-
-### Kotlin ###
-.kotlin

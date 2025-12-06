@@ -4,6 +4,7 @@ import com.sparta.novel_insight.domain.*
 import com.sparta.novel_insight.dto.EpisodeResponse
 import com.sparta.novel_insight.repository.*
 import com.sparta.novel_insight.security.UserPrincipal
+import org.slf4j.LoggerFactory
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -18,8 +19,14 @@ class EpisodeController(
     private val purchaseRepository: PurchaseRepository,
     private val commentRepository: EpisodeCommentRepository,
     private val likeRepository: CommentLikeRepository,
-    private val redisTemplate: StringRedisTemplate // Redis 주입
+    private val redisTemplate: StringRedisTemplate, // Redis 주입
+    // ★★★ Phase 2: WebSocket 실시간 알림 시스템 추가 ★★★
+    private val notificationService: com.sparta.novel_insight.service.NotificationService, // 알림 발송 서비스
+    private val memberRepository: com.sparta.novel_insight.repository.MemberRepository // 작가 조회용
 ) {
+    companion object {
+        private val logger = LoggerFactory.getLogger(EpisodeController::class.java)
+    }
 
     @GetMapping("/novels/{novelId}/episodes")
     fun getEpisodes(
@@ -101,9 +108,17 @@ class EpisodeController(
     fun createEpisode(@PathVariable novelId: Long, @RequestBody request: CreateEpisodeRequest, @AuthenticationPrincipal user: UserPrincipal): ResponseEntity<String> {
         val novel = novelRepository.findById(novelId).orElseThrow()
         if (novel.authorId != user.id) return ResponseEntity.status(403).body("본인의 소설에만 회차를 등록할 수 있습니다.")
+
+        // 다음 회차 번호 계산 (기존 에피소드 개수 + 1)
+        val nextEpisodeNumber = novel.episodes.size + 1
+
         val episode = Episode(
-            title = request.title, content = request.content,
-            price = if (request.isFree) 0 else 100, isFree = request.isFree, novel = novel
+            title = request.title,
+            content = request.content,
+            episodeNumber = nextEpisodeNumber,
+            price = if (request.isFree) 0 else 100,
+            isFree = request.isFree,
+            novel = novel
         )
         episodeRepository.save(episode)
         return ResponseEntity.ok("등록 완료")
@@ -118,9 +133,96 @@ class EpisodeController(
 
     @PostMapping("/episodes/{episodeId}/comments")
     fun addComment(@PathVariable episodeId: Long, @RequestBody request: CreateCommentRequest, @AuthenticationPrincipal user: UserPrincipal): ResponseEntity<String> {
+        // 1단계: Episode 조회
         val episode = episodeRepository.findById(episodeId).orElseThrow()
+
+        // 2단계: Comment 생성 및 저장
         val comment = EpisodeComment(content=request.content, writerName=user.email.split("@")[0], writerId=user.id, episode=episode)
         commentRepository.save(comment)
+
+        // ★★★ 3단계: WebSocket 실시간 알림 발송 (Phase 2 추가) ★★★
+        // 댓글 작성 시 작가에게 NEW_COMMENT 알림 전송
+        //
+        // WHY 댓글에만 알림?
+        // - 작가는 독자 반응에 관심이 많음
+        // - 댓글은 직접적인 소통 수단
+        // - 작가의 답글 유도 → 커뮤니티 활성화
+        //
+        // 알림 발송 흐름:
+        // 1. Episode → Novel → authorId로 작가 조회
+        // 2. NEW_COMMENT 타입 알림 생성
+        // 3. DB 저장 + WebSocket 발송
+        // 4. 작가가 온라인이면 즉시 알림 수신
+        try {
+            // 작가 조회
+            // episode.novel.authorId: Episode의 소설 작가 ID
+            // FetchType.LAZY이므로 novel 접근 시 추가 쿼리 발생
+            // @Transactional 없으면 LazyInitializationException 발생 가능
+            // → 현재는 컨트롤러에 @Transactional 없음 (주의 필요)
+            //
+            // TODO: 성능 최적화
+            // - Episode 조회 시 JOIN FETCH novel 사용
+            // - 또는 이 메서드에 @Transactional 추가
+            val authorId = episode.novel.authorId
+            val author = memberRepository.findById(authorId).orElse(null)
+
+            // 알림 발송 (작가가 존재하는 경우만)
+            if (author != null) {
+                // 댓글 작성자 정보
+                // user.email.split("@")[0]: 이메일 앞부분을 닉네임으로 사용
+                // 예: "hong@example.com" → "hong"
+                // TODO: Member 엔티티에 nickname 필드 추가 권장
+                val commenterNickname = user.email.split("@")[0]
+
+                // 알림 메시지 생성
+                // NotificationType.NEW_COMMENT.getTemplate():
+                // - "hong님이 '회차제목'에 댓글을 남겼습니다"
+                // - 템플릿 파라미터: nickname, episodeTitle
+                val message = com.sparta.novel_insight.domain.NotificationType.NEW_COMMENT.getTemplate(
+                    mapOf(
+                        "nickname" to commenterNickname,
+                        "episodeTitle" to episode.title
+                    )
+                )
+
+                // 댓글 작성자 Member 조회 (sender 정보)
+                // WHY sender 필요?
+                // - 알림 UI에 작성자 프로필 표시
+                // - "누가 댓글을 남겼는지" 명확히 표시
+                // - 향후 답글 기능 구현 시 필요
+                val sender = memberRepository.findById(user.id).orElse(null)
+
+                // NotificationService로 알림 발송
+                // 파라미터:
+                // - type: NEW_COMMENT
+                // - recipient: author (작가)
+                // - sender: 댓글 작성자 Member
+                // - content: 생성된 메시지
+                // - relatedId: comment.id (댓글 상세 페이지 이동용)
+                //
+                // 내부 동작:
+                // 1. DB 저장: notification 테이블에 INSERT
+                // 2. WebSocket 발송: /topic/notifications/{authorId}
+                // 3. 작가가 구독 중이면 실시간 수신
+                // 4. 프론트엔드: 브라우저 알림, 뱃지 업데이트
+                notificationService.sendNotification(
+                    type = com.sparta.novel_insight.domain.NotificationType.NEW_COMMENT,
+                    recipient = author,
+                    sender = sender,
+                    content = message,
+                    relatedId = comment.id // 프론트엔드에서 /episodes/{episodeId}/comments/{commentId} 이동
+                )
+            }
+        } catch (e: Exception) {
+            // 알림 발송 실패 시 로그만 출력 (댓글 저장은 성공 유지)
+            // WHY 예외를 먹어버리는가?
+            // - 알림 시스템 장애가 댓글 작성을 막으면 안 됨
+            // - 사용자 경험 우선: 댓글은 반드시 저장되어야 함
+            // - 알림은 부가 기능 (Nice-to-have)
+            // - 오프라인 작가는 나중에 알림 조회 가능
+            logger.error("댓글 알림 발송 실패: episodeId=$episodeId, commentId=${comment.id}", e)
+        }
+
         return ResponseEntity.ok("등록 완료")
     }
 
