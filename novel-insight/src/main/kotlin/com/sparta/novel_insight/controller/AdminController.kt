@@ -1,13 +1,17 @@
 package com.sparta.novel_insight.controller
 
+import kotlinx.coroutines.*
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.core.io.ClassPathResource
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.jdbc.core.JdbcTemplate
-import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.jdbc.datasource.init.ScriptUtils
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RestController
-import java.io.File
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import java.sql.Connection
 import javax.sql.DataSource
 
 /**
@@ -21,10 +25,40 @@ class AdminController(
 ) {
 
     /**
-     * Mock Data 생성 API
+     * Mock Data 생성 시작 API
+     *
+     * 사용법:
+     * http://localhost:8080/api/admin/generate-mock-data-start
+     *
+     * 이 API를 호출하면 백그라운드에서 Mock Data 생성이 시작되고,
+     * 바로 응답을 받습니다. 진행 상황은 /stream 엔드포인트에서 확인하세요.
+     */
+    @GetMapping("/generate-mock-data-start")
+    fun generateMockDataStart(): ResponseEntity<Map<String, Any>> {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                generateMockDataAsync()
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }
+
+        return ResponseEntity.ok(
+            mapOf(
+                "success" to true,
+                "message" to "Mock Data 생성이 백그라운드에서 시작되었습니다.",
+                "tip" to "진행 상황은 /api/admin/generate-mock-data-stream 에서 확인하세요."
+            )
+        )
+    }
+
+    /**
+     * Mock Data 생성 + 실시간 진행 상황 스트리밍
      *
      * 사용법 (브라우저에서 바로 실행 가능!):
-     * http://localhost:8080/api/admin/generate-mock-data
+     * http://localhost:8080/api/admin/generate-mock-data-stream
+     *
+     * Server-Sent Events를 사용하여 실시간으로 진행 상황을 보여줍니다.
      *
      * ⚠️ 주의: 기존 데이터를 모두 삭제하고 새로운 Mock Data를 생성합니다!
      *
@@ -37,48 +71,128 @@ class AdminController(
      * - 읽기 로그 500,000개
      *
      * 예상 소요 시간: 10-15분
-     *
-     * @return 성공 메시지 및 생성된 데이터 개수
      */
-    @org.springframework.web.bind.annotation.GetMapping("/generate-mock-data")
+    @GetMapping("/generate-mock-data-stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+    fun generateMockDataStream(): SseEmitter {
+        val emitter = SseEmitter(900000L) // 15분 타임아웃
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                sendProgress(emitter, "🚀 Mock Data 생성 시작...")
+                sendProgress(emitter, "📂 mock-data.sql 파일 읽는 중...")
+
+                val resource = ClassPathResource("mock-data.sql")
+                if (!resource.exists()) {
+                    sendProgress(emitter, "❌ 오류: mock-data.sql 파일을 찾을 수 없습니다.")
+                    emitter.complete()
+                    return@launch
+                }
+
+                sendProgress(emitter, "✅ 파일 발견!")
+                sendProgress(emitter, "🗄️ 데이터베이스 연결 중...")
+
+                val startTime = System.currentTimeMillis()
+
+                // ScriptUtils를 사용하여 SQL 스크립트 실행 (DELIMITER 지원)
+                dataSource.connection.use { connection: Connection ->
+                    connection.autoCommit = false
+
+                    sendProgress(emitter, "✅ 연결 성공!")
+                    sendProgress(emitter, "🔄 SQL 스크립트 실행 중...")
+                    sendProgress(emitter, "")
+                    sendProgress(emitter, "📊 단계별 진행 상황:")
+                    sendProgress(emitter, "1️⃣ 기존 데이터 삭제 중...")
+
+                    try {
+                        // SQL 스크립트 실행
+                        ScriptUtils.executeSqlScript(connection, resource)
+                        connection.commit()
+
+                        sendProgress(emitter, "")
+                        sendProgress(emitter, "✅ SQL 스크립트 실행 완료!")
+                    } catch (e: Exception) {
+                        connection.rollback()
+                        throw e
+                    }
+                }
+
+                val endTime = System.currentTimeMillis()
+                val durationSeconds = (endTime - startTime) / 1000
+
+                // 데이터 개수 확인
+                sendProgress(emitter, "")
+                sendProgress(emitter, "📊 생성된 데이터 확인 중...")
+
+                val jdbcTemplate = JdbcTemplate(dataSource)
+                val counts = mapOf(
+                    "members" to (jdbcTemplate.queryForObject("SELECT COUNT(*) FROM member", Long::class.java) ?: 0),
+                    "novels" to (jdbcTemplate.queryForObject("SELECT COUNT(*) FROM novel", Long::class.java) ?: 0),
+                    "episodes" to (jdbcTemplate.queryForObject("SELECT COUNT(*) FROM episode", Long::class.java) ?: 0),
+                    "reviews" to (jdbcTemplate.queryForObject("SELECT COUNT(*) FROM review", Long::class.java) ?: 0),
+                    "comments" to (jdbcTemplate.queryForObject("SELECT COUNT(*) FROM episode_comment", Long::class.java) ?: 0),
+                    "readLogs" to (jdbcTemplate.queryForObject("SELECT COUNT(*) FROM episode_read_log", Long::class.java) ?: 0)
+                )
+
+                sendProgress(emitter, "")
+                sendProgress(emitter, "=" .repeat(50))
+                sendProgress(emitter, "🎉 Mock Data 생성 완료!")
+                sendProgress(emitter, "=" .repeat(50))
+                sendProgress(emitter, "")
+                sendProgress(emitter, "📊 생성된 데이터:")
+                sendProgress(emitter, "  👥 회원: ${counts["members"]}명")
+                sendProgress(emitter, "  📚 소설: ${counts["novels"]}편")
+                sendProgress(emitter, "  📖 에피소드: ${counts["episodes"]}개")
+                sendProgress(emitter, "  ⭐ 리뷰: ${counts["reviews"]}개")
+                sendProgress(emitter, "  💬 댓글: ${counts["comments"]}개")
+                sendProgress(emitter, "  📈 읽기 로그: ${counts["readLogs"]}개")
+                sendProgress(emitter, "")
+                sendProgress(emitter, "⏱️ 소요 시간: ${durationSeconds}초 (${durationSeconds / 60}분 ${durationSeconds % 60}초)")
+                sendProgress(emitter, "")
+                sendProgress(emitter, "✨ 이제 프론트엔드에서 데이터를 확인할 수 있습니다!")
+
+                emitter.complete()
+
+            } catch (e: Exception) {
+                sendProgress(emitter, "")
+                sendProgress(emitter, "❌ 오류 발생: ${e.message}")
+                e.printStackTrace()
+                emitter.completeWithError(e)
+            }
+        }
+
+        return emitter
+    }
+
+    /**
+     * Mock Data 생성 (동기 방식 - JSON 응답)
+     *
+     * Server-Sent Events를 지원하지 않는 클라이언트용
+     */
+    @GetMapping("/generate-mock-data")
     fun generateMockData(): ResponseEntity<Map<String, Any>> {
         return try {
-            val jdbcTemplate = JdbcTemplate(dataSource)
-
-            // mock-data.sql 파일 읽기 (resources 폴더에서)
             val resource = ClassPathResource("mock-data.sql")
-
             if (!resource.exists()) {
                 return ResponseEntity.badRequest().body(
                     mapOf(
                         "success" to false,
-                        "message" to "mock-data.sql 파일을 찾을 수 없습니다. resources 폴더를 확인하세요.",
-                        "path" to "classpath:mock-data.sql"
+                        "message" to "mock-data.sql 파일을 찾을 수 없습니다.",
+                        "tip" to "/generate-mock-data-stream을 사용하면 실시간 진행 상황을 볼 수 있습니다."
                     )
                 )
             }
 
-            val sqlScript = resource.inputStream.bufferedReader().use { it.readText() }
-
-            // SQL 스크립트를 세미콜론으로 분리하여 각 문장 실행
-            // DELIMITER 처리를 위해 특별한 파싱 필요
-            val statements = parseSqlScript(sqlScript)
-
-            var executedCount = 0
             val startTime = System.currentTimeMillis()
 
-            // 각 SQL 문 실행
-            statements.forEach { sql ->
-                if (sql.isNotBlank()) {
-                    try {
-                        jdbcTemplate.execute(sql)
-                        executedCount++
-                    } catch (e: Exception) {
-                        // 프로시저 DROP 실패 등은 무시
-                        if (!sql.contains("DROP PROCEDURE")) {
-                            println("SQL 실행 오류 (무시됨): ${e.message}")
-                        }
-                    }
+            // ScriptUtils를 사용하여 SQL 스크립트 실행
+            dataSource.connection.use { connection ->
+                connection.autoCommit = false
+                try {
+                    ScriptUtils.executeSqlScript(connection, resource)
+                    connection.commit()
+                } catch (e: Exception) {
+                    connection.rollback()
+                    throw e
                 }
             }
 
@@ -86,6 +200,7 @@ class AdminController(
             val durationSeconds = (endTime - startTime) / 1000
 
             // 데이터 개수 확인
+            val jdbcTemplate = JdbcTemplate(dataSource)
             val counts = mapOf(
                 "members" to (jdbcTemplate.queryForObject("SELECT COUNT(*) FROM member", Long::class.java) ?: 0),
                 "novels" to (jdbcTemplate.queryForObject("SELECT COUNT(*) FROM novel", Long::class.java) ?: 0),
@@ -99,9 +214,9 @@ class AdminController(
                 mapOf(
                     "success" to true,
                     "message" to "Mock Data 생성 완료!",
-                    "executedStatements" to executedCount,
                     "durationSeconds" to durationSeconds,
-                    "data" to counts
+                    "data" to counts,
+                    "tip" to "/generate-mock-data-stream을 사용하면 실시간 진행 상황을 볼 수 있습니다."
                 )
             )
         } catch (e: Exception) {
@@ -117,68 +232,42 @@ class AdminController(
     }
 
     /**
-     * SQL 스크립트 파싱
-     * DELIMITER 변경을 고려하여 파싱
+     * 비동기 Mock Data 생성 (내부 사용)
      */
-    private fun parseSqlScript(script: String): List<String> {
-        val statements = mutableListOf<String>()
-        var currentStatement = StringBuilder()
-        var currentDelimiter = ";"
-        var inDelimiterBlock = false
+    private suspend fun generateMockDataAsync() {
+        val resource = ClassPathResource("mock-data.sql")
+        if (!resource.exists()) {
+            println("mock-data.sql 파일을 찾을 수 없습니다.")
+            return
+        }
 
-        script.lines().forEach { line ->
-            val trimmedLine = line.trim()
-
-            when {
-                // DELIMITER 변경
-                trimmedLine.startsWith("DELIMITER") -> {
-                    val newDelimiter = trimmedLine.substring(9).trim()
-                    if (newDelimiter == "$$") {
-                        inDelimiterBlock = true
-                        currentDelimiter = "$$"
-                    } else {
-                        inDelimiterBlock = false
-                        currentDelimiter = ";"
-
-                        // 이전 문장 저장
-                        if (currentStatement.isNotBlank()) {
-                            statements.add(currentStatement.toString().trim())
-                            currentStatement = StringBuilder()
-                        }
-                    }
-                }
-                // 주석 무시
-                trimmedLine.startsWith("--") || trimmedLine.startsWith("#") -> {
-                    // 주석은 무시
-                }
-                // 빈 줄 무시
-                trimmedLine.isEmpty() -> {
-                    // 빈 줄 무시
-                }
-                // SQL 문장 추가
-                else -> {
-                    currentStatement.append(line).append("\n")
-
-                    // Delimiter 체크
-                    if (trimmedLine.endsWith(currentDelimiter)) {
-                        val sql = currentStatement.toString()
-                            .removeSuffix(currentDelimiter)
-                            .trim()
-
-                        if (sql.isNotBlank()) {
-                            statements.add(sql)
-                        }
-                        currentStatement = StringBuilder()
-                    }
-                }
+        dataSource.connection.use { connection ->
+            connection.autoCommit = false
+            try {
+                ScriptUtils.executeSqlScript(connection, resource)
+                connection.commit()
+                println("Mock Data 생성 완료!")
+            } catch (e: Exception) {
+                connection.rollback()
+                println("Mock Data 생성 실패: ${e.message}")
+                throw e
             }
         }
+    }
 
-        // 마지막 문장 처리
-        if (currentStatement.isNotBlank()) {
-            statements.add(currentStatement.toString().trim())
+    /**
+     * SSE 진행 상황 전송 헬퍼 함수
+     */
+    private suspend fun sendProgress(emitter: SseEmitter, message: String) {
+        delay(100) // 메시지가 너무 빨리 전송되지 않도록
+        try {
+            emitter.send(
+                SseEmitter.event()
+                    .data(message)
+                    .name("progress")
+            )
+        } catch (e: Exception) {
+            // 클라이언트 연결이 끊어진 경우 무시
         }
-
-        return statements
     }
 }
