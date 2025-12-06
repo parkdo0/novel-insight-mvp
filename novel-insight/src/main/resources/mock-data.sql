@@ -22,16 +22,11 @@ USE novel_insight;
 -- 기존 데이터 삭제 (FK 제약조건 역순)
 SET FOREIGN_KEY_CHECKS = 0;
 TRUNCATE TABLE episode_read_log;
-TRUNCATE TABLE drop_off_point;
-TRUNCATE TABLE author_dashboard_cache;
 TRUNCATE TABLE review_analysis;
 TRUNCATE TABLE review;
 TRUNCATE TABLE episode_comment;
-TRUNCATE TABLE episode_purchase;
 TRUNCATE TABLE episode;
 TRUNCATE TABLE novel;
-TRUNCATE TABLE point_history;
-TRUNCATE TABLE point;
 TRUNCATE TABLE member;
 SET FOREIGN_KEY_CHECKS = 1;
 

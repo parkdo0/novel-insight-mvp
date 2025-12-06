@@ -72,7 +72,7 @@ class AdminController(
      *
      * 예상 소요 시간: 10-15분
      */
-    @GetMapping("/generate-mock-data-stream", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+    @GetMapping("/generate-mock-data-stream", produces = ["text/event-stream;charset=UTF-8"])
     fun generateMockDataStream(): SseEmitter {
         val emitter = SseEmitter(900000L) // 15분 타임아웃
 
