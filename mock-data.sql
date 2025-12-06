@@ -8,6 +8,7 @@
 -- - 소설 150편
 -- - 에피소드 ~5,000개
 -- - 리뷰 + 감성 분석 50,000개
+-- - 댓글 100,000개
 -- - 읽기 로그 500,000개 (최근 30일)
 --
 -- 실행 방법:
@@ -26,8 +27,11 @@ TRUNCATE TABLE author_dashboard_cache;
 TRUNCATE TABLE review_analysis;
 TRUNCATE TABLE review;
 TRUNCATE TABLE episode_comment;
+TRUNCATE TABLE episode_purchase;
 TRUNCATE TABLE episode;
 TRUNCATE TABLE novel;
+TRUNCATE TABLE point_history;
+TRUNCATE TABLE point;
 TRUNCATE TABLE member;
 SET FOREIGN_KEY_CHECKS = 1;
 
@@ -36,60 +40,60 @@ SET FOREIGN_KEY_CHECKS = 1;
 -- ========================================
 -- 작가 50명 + 독자 1,000명 = 1,050명
 
--- 작가 50명 생성
-INSERT INTO member (email, password, nickname) VALUES
-('author1@novel.com', 'password123!', '김민서 작가'),
-('author2@novel.com', 'password123!', '이지수 작가'),
-('author3@novel.com', 'password123!', '박현우 작가'),
-('author4@novel.com', 'password123!', '최서연 작가'),
-('author5@novel.com', 'password123!', '정도윤 작가'),
-('author6@novel.com', 'password123!', '강시아 작가'),
-('author7@novel.com', 'password123!', '조은혁 작가'),
-('author8@novel.com', 'password123!', '윤영선 작가'),
-('author9@novel.com', 'password123!', '장재미 작가'),
-('author10@novel.com', 'password123!', '임준경 작가'),
-('author11@novel.com', 'password123!', '한하민 작가'),
-('author12@novel.com', 'password123!', '오서지 작가'),
-('author13@novel.com', 'password123!', '서수우 작가'),
-('author14@novel.com', 'password123!', '신윤준 작가'),
-('author15@novel.com', 'password123!', '권도연 작가'),
-('author16@novel.com', 'password123!', '황시재 작가'),
-('author17@novel.com', 'password123!', '안아혁 작가'),
-('author18@novel.com', 'password123!', '송현영 작가'),
-('author19@novel.com', 'password123!', '류은선 작가'),
-('author20@novel.com', 'password123!', '홍지미 작가'),
-('author21@novel.com', 'password123!', '김서경 작가'),
-('author22@novel.com', 'password123!', '이윤민 작가'),
-('author23@novel.com', 'password123!', '박도서 작가'),
-('author24@novel.com', 'password123!', '최지하 작가'),
-('author25@novel.com', 'password123!', '정수은 작가'),
-('author26@novel.com', 'password123!', '강현준 작가'),
-('author27@novel.com', 'password123!', '조우윤 작가'),
-('author28@novel.com', 'password123!', '윤시도 작가'),
-('author29@novel.com', 'password123!', '장아연 작가'),
-('author30@novel.com', 'password123!', '임재영 작가'),
-('author31@novel.com', 'password123!', '한혁선 작가'),
-('author32@novel.com', 'password123!', '오영미 작가'),
-('author33@novel.com', 'password123!', '서선경 작가'),
-('author34@novel.com', 'password123!', '신민우 작가'),
-('author35@novel.com', 'password123!', '권서준 작가'),
-('author36@novel.com', 'password123!', '황지윤 작가'),
-('author37@novel.com', 'password123!', '안도연 작가'),
-('author38@novel.com', 'password123!', '송시재 작가'),
-('author39@novel.com', 'password123!', '류아혁 작가'),
-('author40@novel.com', 'password123!', '홍현영 작가'),
-('author41@novel.com', 'password123!', '김은선 작가'),
-('author42@novel.com', 'password123!', '이지미 작가'),
-('author43@novel.com', 'password123!', '박서경 작가'),
-('author44@novel.com', 'password123!', '최윤민 작가'),
-('author45@novel.com', 'password123!', '정도서 작가'),
-('author46@novel.com', 'password123!', '강지하 작가'),
-('author47@novel.com', 'password123!', '조수은 작가'),
-('author48@novel.com', 'password123!', '윤현준 작가'),
-('author49@novel.com', 'password123!', '장우윤 작가'),
-('author50@novel.com', 'password123!', '임시도 작가');
+-- 작가 50명 생성 (role = 'AUTHOR')
+INSERT INTO member (email, password, nickname, role, created_at) VALUES
+('author1@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '김민서 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author2@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '이지수 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author3@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '박현우 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author4@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '최서연 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author5@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '정도윤 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author6@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '강시아 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author7@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '조은혁 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author8@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '윤영선 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author9@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '장재미 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author10@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '임준경 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author11@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '한하민 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author12@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '오서지 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author13@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '서수우 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author14@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '신윤준 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author15@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '권도연 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author16@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '황시재 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author17@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '안아혁 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author18@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '송현영 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author19@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '류은선 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author20@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '홍지미 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author21@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '김서경 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author22@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '이윤민 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author23@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '박도서 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author24@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '최지하 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author25@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '정수은 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author26@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '강현준 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author27@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '조우윤 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author28@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '윤시도 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author29@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '장아연 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author30@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '임재영 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author31@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '한혁선 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author32@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '오영미 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author33@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '서선경 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author34@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '신민우 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author35@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '권서준 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author36@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '황지윤 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author37@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '안도연 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author38@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '송시재 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author39@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '류아혁 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author40@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '홍현영 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author41@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '김은선 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author42@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '이지미 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author43@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '박서경 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author44@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '최윤민 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author45@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '정도서 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author46@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '강지하 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author47@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '조수은 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author48@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '윤현준 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author49@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '장우윤 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)),
+('author50@novel.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy', '임시도 작가', 'AUTHOR', DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY));
 
--- 독자 1,000명은 프로시저로 생성 (MySQL 8.0+)
+-- 독자 1,000명은 프로시저로 생성 (MySQL 8.0+, role = 'READER')
 DELIMITER $$
 CREATE PROCEDURE generate_readers()
 BEGIN
@@ -97,16 +101,20 @@ BEGIN
     DECLARE surname VARCHAR(10);
     DECLARE name1 VARCHAR(10);
     DECLARE name2 VARCHAR(10);
-    DECLARE surnames TEXT DEFAULT '김,이,박,최,정,강,조,윤,장,임,한,오,서,신,권,황,안,송,류,홍';
-    DECLARE names TEXT DEFAULT '민,서,지,수,하,은,현,우,준,윤,도,시,아,연,재,혁,영,선,미,경';
 
     WHILE i <= 1000 DO
         SET surname = ELT(FLOOR(1 + RAND() * 20), '김','이','박','최','정','강','조','윤','장','임','한','오','서','신','권','황','안','송','류','홍');
         SET name1 = ELT(FLOOR(1 + RAND() * 20), '민','서','지','수','하','은','현','우','준','윤','도','시','아','연','재','혁','영','선','미','경');
         SET name2 = ELT(FLOOR(1 + RAND() * 20), '민','서','지','수','하','은','현','우','준','윤','도','시','아','연','재','혁','영','선','미','경');
 
-        INSERT INTO member (email, password, nickname)
-        VALUES (CONCAT('reader', i, '@novel.com'), 'password123!', CONCAT(surname, name1, name2));
+        INSERT INTO member (email, password, nickname, role, created_at)
+        VALUES (
+            CONCAT('reader', i, '@novel.com'),
+            '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy',
+            CONCAT(surname, name1, name2),
+            'READER',
+            DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)
+        );
 
         SET i = i + 1;
     END WHILE;
@@ -119,7 +127,7 @@ DROP PROCEDURE generate_readers;
 -- ========================================
 -- 2. Novel (소설 데이터)
 -- ========================================
--- 150편 소설 생성
+-- 150편 소설 생성 (genre, status 추가)
 
 DELIMITER $$
 CREATE PROCEDURE generate_novels()
@@ -127,8 +135,8 @@ BEGIN
     DECLARE i INT DEFAULT 1;
     DECLARE author_id BIGINT;
     DECLARE novel_title VARCHAR(255);
-    DECLARE nouns TEXT DEFAULT '검성,마법사,황제,기사,암살자,영주,현자,용사,악당,공작,마왕,성자';
-    DECLARE adj TEXT DEFAULT '찬란한,어두운,빛나는,숨겨진,금지된,전설의,불멸의,잊혀진';
+    DECLARE genre_val VARCHAR(50);
+    DECLARE status_val VARCHAR(20);
 
     WHILE i <= 150 DO
         -- 랜덤 작가 선택 (ID 1-50)
@@ -142,12 +150,30 @@ BEGIN
             ELSE CONCAT(ELT(FLOOR(1 + RAND() * 12), '검성','마법사','황제','기사','암살자','영주','현자','용사','악당','공작','마왕','성자'), '의 귀환')
         END;
 
-        INSERT INTO novel (title, author, author_id, description, view_count, created_at)
+        -- 랜덤 장르 (판타지 50%, 로맨스 20%, 무협 15%, 현대물 10%, SF 5%)
+        SET genre_val = CASE FLOOR(1 + RAND() * 20)
+            WHEN 1,2,3,4,5,6,7,8,9,10 THEN '판타지'
+            WHEN 11,12,13,14 THEN '로맨스'
+            WHEN 15,16,17 THEN '무협'
+            WHEN 18,19 THEN '현대물'
+            ELSE 'SF'
+        END;
+
+        -- 연재 상태 (연재중 70%, 완결 25%, 휴재 5%)
+        SET status_val = CASE
+            WHEN RAND() < 0.70 THEN 'ONGOING'
+            WHEN RAND() < 0.95 THEN 'COMPLETED'
+            ELSE 'HIATUS'
+        END;
+
+        INSERT INTO novel (title, author, author_id, description, genre, status, view_count, created_at)
         SELECT
             novel_title,
             nickname,
             author_id,
             '흥미진진한 스토리가 펼쳐집니다. 주인공의 성장과 모험을 함께하세요!',
+            genre_val,
+            status_val,
             FLOOR(RAND() * 100000),
             DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY)
         FROM member WHERE id = author_id;
@@ -164,6 +190,7 @@ DROP PROCEDURE generate_novels();
 -- 3. Episode (에피소드 데이터)
 -- ========================================
 -- 소설당 20-50개 에피소드 생성 (총 ~5,000개)
+-- episode_number, published_at, created_at 추가
 
 DELIMITER $$
 CREATE PROCEDURE generate_episodes()
@@ -173,6 +200,7 @@ BEGIN
     DECLARE episode_count INT;
     DECLARE i INT;
     DECLARE episode_title VARCHAR(255);
+    DECLARE base_date DATETIME;
 
     DECLARE novel_cursor CURSOR FOR SELECT id FROM novel;
     DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
@@ -192,6 +220,9 @@ BEGIN
             SET episode_count = FLOOR(10 + RAND() * 20);
         END IF;
 
+        -- 소설별 기준 날짜 (최근 1년 이내)
+        SET base_date = DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 365) DAY);
+
         SET i = 1;
         WHILE i <= episode_count DO
             SET episode_title = CASE FLOOR(1 + RAND() * 12)
@@ -209,14 +240,18 @@ BEGIN
                 ELSE '새로운 여정'
             END;
 
-            INSERT INTO episode (title, content, price, is_free, view_count, purchase_count, novel_id)
+            -- 에피소드는 순차적으로 발행 (1일 ~ 7일 간격)
+            INSERT INTO episode (title, content, episode_number, price, is_free, view_count, purchase_count, published_at, created_at, novel_id)
             VALUES (
                 CONCAT(i, '화 - ', episode_title),
                 REPEAT('에피소드 내용입니다. ', FLOOR(50 + RAND() * 150)),
-                IF(i <= 3, 0, FLOOR(100 + RAND() * 400)),
+                i, -- 회차 번호 (1, 2, 3...)
+                IF(i <= 3, 0, FLOOR(100 + RAND() * 400)), -- 처음 3화는 무료
                 IF(i <= 3, TRUE, FALSE),
                 FLOOR(RAND() * 50000),
                 IF(i > 3, FLOOR(RAND() * 10000), 0),
+                DATE_ADD(base_date, INTERVAL (i - 1) * FLOOR(1 + RAND() * 7) DAY), -- published_at
+                DATE_ADD(base_date, INTERVAL (i - 1) * FLOOR(1 + RAND() * 7) DAY), -- created_at
                 novel_id_var
             );
 
@@ -232,16 +267,19 @@ CALL generate_episodes();
 DROP PROCEDURE generate_episodes;
 
 -- ========================================
--- 4. Review + ReviewAnalysis (리뷰 + 감성 분석)
+-- 4. Review (리뷰 데이터)
 -- ========================================
 -- 50,000개 리뷰 생성
+-- user_id, rating, created_at 추가
 
 DELIMITER $$
 CREATE PROCEDURE generate_reviews()
 BEGIN
     DECLARE i INT DEFAULT 1;
     DECLARE novel_id_var BIGINT;
+    DECLARE user_id_var BIGINT;
     DECLARE review_content TEXT;
+    DECLARE rating_val DECIMAL(3,1);
     DECLARE sentiment_val VARCHAR(20);
     DECLARE score_val DOUBLE;
 
@@ -249,10 +287,14 @@ BEGIN
         -- 랜덤 소설 선택
         SELECT id INTO novel_id_var FROM novel ORDER BY RAND() LIMIT 1;
 
+        -- 랜덤 독자 선택 (ID 51-1050)
+        SET user_id_var = FLOOR(51 + RAND() * 1000);
+
         -- 감성 분포: 긍정 60%, 부정 20%, 중립 20%
         IF RAND() < 0.6 THEN
             SET sentiment_val = 'POSITIVE';
             SET score_val = 70 + RAND() * 30;
+            SET rating_val = 4.0 + RAND() * 1.0; -- 4.0 ~ 5.0
             SET review_content = ELT(FLOOR(1 + RAND() * 8),
                 '정말 재미있어요! 다음 화가 너무 기대됩니다.',
                 '스토리 전개가 완벽합니다. 강추!',
@@ -266,6 +308,7 @@ BEGIN
         ELSEIF RAND() < 0.8 THEN
             SET sentiment_val = 'NEGATIVE';
             SET score_val = RAND() * 30;
+            SET rating_val = 1.0 + RAND() * 2.0; -- 1.0 ~ 3.0
             SET review_content = ELT(FLOOR(1 + RAND() * 8),
                 '전개가 너무 느려요. 지루합니다.',
                 '주인공이 공감이 안 가네요.',
@@ -279,6 +322,7 @@ BEGIN
         ELSE
             SET sentiment_val = 'NEUTRAL';
             SET score_val = 30 + RAND() * 40;
+            SET rating_val = 2.5 + RAND() * 2.0; -- 2.5 ~ 4.5
             SET review_content = ELT(FLOOR(1 + RAND() * 8),
                 '나쁘지 않은데 특별한 건 없네요.',
                 '그냥 시간 때우기 좋은 소설입니다.',
@@ -291,9 +335,15 @@ BEGIN
             );
         END IF;
 
-        -- Review 삽입
-        INSERT INTO review (content, novel_id)
-        VALUES (review_content, novel_id_var);
+        -- Review 삽입 (user_id, rating, created_at 추가)
+        INSERT INTO review (content, user_id, novel_id, rating, created_at)
+        VALUES (
+            review_content,
+            user_id_var,
+            novel_id_var,
+            rating_val,
+            DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 30) DAY)
+        );
 
         -- ReviewAnalysis 삽입
         INSERT INTO review_analysis (novel_id, author_id, content, sentiment, score, positive_count, negative_count, analyzed_at)
@@ -322,7 +372,78 @@ CALL generate_reviews();
 DROP PROCEDURE generate_reviews;
 
 -- ========================================
--- 5. EpisodeReadLog (읽기 로그)
+-- 5. EpisodeComment (에피소드 댓글)
+-- ========================================
+-- 100,000개 댓글 생성
+
+DELIMITER $$
+CREATE PROCEDURE generate_comments()
+BEGIN
+    DECLARE i INT DEFAULT 1;
+    DECLARE episode_id_var BIGINT;
+    DECLARE writer_id_var BIGINT;
+    DECLARE writer_name_var VARCHAR(100);
+    DECLARE comment_content TEXT;
+
+    WHILE i <= 100000 DO
+        -- 랜덤 에피소드 선택
+        SELECT id INTO episode_id_var FROM episode ORDER BY RAND() LIMIT 1;
+
+        -- 랜덤 독자 선택 (ID 51-1050)
+        SET writer_id_var = FLOOR(51 + RAND() * 1000);
+        SELECT nickname INTO writer_name_var FROM member WHERE id = writer_id_var;
+
+        -- 랜덤 댓글 내용
+        SET comment_content = ELT(FLOOR(1 + RAND() * 20),
+            '재미있어요!',
+            '다음 화 언제 나와요?',
+            '전개가 너무 느려요 ㅠㅠ',
+            '주인공 너무 멋져요!',
+            '이 장면에서 소름 돋았어요',
+            '작가님 감사합니다!',
+            'ㅋㅋㅋㅋㅋㅋㅋ개웃기네',
+            '어? 이거 복선 아니에요?',
+            '드디어 나왔다!!!',
+            '예상대로 전개되네요',
+            '와... 이 반전은 진짜',
+            '주인공 이번엔 어떻게 해결할까요?',
+            '이 캐릭터 진짜 싫어 ㅡㅡ',
+            '작화가 너무 좋아요',
+            '스토리 완전 탄탄하네요',
+            '이번 화는 별로네요...',
+            '감동적이에요 ㅠㅠ',
+            '빨리 다음 화 보고 싶어요!',
+            '여기서 끊으면 어떡해요 ㅠㅠ',
+            '이게 바로 클리프행어...'
+        );
+
+        -- EpisodeComment 삽입
+        INSERT INTO episode_comment (content, writer_name, writer_id, episode_id, like_count, dislike_count, created_at)
+        VALUES (
+            comment_content,
+            writer_name_var,
+            writer_id_var,
+            episode_id_var,
+            FLOOR(RAND() * 50), -- 좋아요 0~50
+            FLOOR(RAND() * 10), -- 싫어요 0~10
+            DATE_SUB(NOW(), INTERVAL FLOOR(RAND() * 30) DAY)
+        );
+
+        SET i = i + 1;
+
+        -- Progress (매 20,000개마다)
+        IF i % 20000 = 0 THEN
+            SELECT CONCAT('Comments: ', i, ' / 100000') AS progress;
+        END IF;
+    END WHILE;
+END$$
+DELIMITER ;
+
+CALL generate_comments();
+DROP PROCEDURE generate_comments;
+
+-- ========================================
+-- 6. EpisodeReadLog (읽기 로그)
 -- ========================================
 -- 500,000개 로그 생성 (최근 30일)
 -- Phase 6 핵심 데이터
@@ -435,5 +556,7 @@ UNION ALL
 SELECT 'Review count:', COUNT(*) FROM review
 UNION ALL
 SELECT 'ReviewAnalysis count:', COUNT(*) FROM review_analysis
+UNION ALL
+SELECT 'EpisodeComment count:', COUNT(*) FROM episode_comment
 UNION ALL
 SELECT 'EpisodeReadLog count:', COUNT(*) FROM episode_read_log;
