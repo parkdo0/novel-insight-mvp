@@ -368,21 +368,34 @@ class AdminController(
 
         val totalEpisodes = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM episode", Int::class.java) ?: 0
 
+        // 각 에피소드의 novel_id를 미리 조회
+        val episodeNovelMap = mutableMapOf<Int, Int>()
+        jdbcTemplate.query("SELECT id, novel_id FROM episode") { rs ->
+            episodeNovelMap[rs.getInt("id")] = rs.getInt("novel_id")
+        }
+
+        val deviceTypes = listOf("MOBILE", "TABLET", "DESKTOP")
+
         for (batch in 1..(totalLogs / batchSize)) {
             val values = mutableListOf<String>()
 
             for (i in 1..batchSize) {
                 val episodeId = (1..totalEpisodes).random()
+                val novelId = episodeNovelMap[episodeId] ?: 1
                 val userId = 51 + (1..1000).random()
-                val readProgress = (0..100).random()
-                val readDuration = (60..3600).random()
+                val maxScrollDepth = (0..100).random()
+                val readingDurationSeconds = (60..3600).random()
+                val isCompleted = if (maxScrollDepth >= 90) 1 else 0
+                val sessionId = "session_${userId}_${System.currentTimeMillis()}_${i}"
+                val deviceType = deviceTypes.random()
+                val daysAgo = (1..30).random()
 
-                values.add("($userId, $episodeId, $readProgress, $readDuration, DATE_SUB(NOW(), INTERVAL ${(1..30).random()} DAY))")
+                values.add("($userId, $episodeId, $novelId, DATE_SUB(NOW(), INTERVAL $daysAgo DAY), NULL, $readingDurationSeconds, $maxScrollDepth, $isCompleted, '$sessionId', '$deviceType', DATE_SUB(NOW(), INTERVAL $daysAgo DAY))")
             }
 
             jdbcTemplate.execute(
                 """
-                INSERT INTO episode_read_log (user_id, episode_id, read_progress, read_duration_seconds, created_at)
+                INSERT INTO episode_read_log (user_id, episode_id, novel_id, started_at, ended_at, reading_duration_seconds, max_scroll_depth, is_completed, session_id, device_type, created_at)
                 VALUES ${values.joinToString(", ")}
                 """
             )
