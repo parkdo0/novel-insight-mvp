@@ -132,6 +132,7 @@ class AuthorDashboardService(
     private val episodeReadLogRepository: EpisodeReadLogRepository,
     private val reviewAnalysisRepository: ReviewAnalysisRepository,
     private val dropOffAnalysisService: DropOffAnalysisService,
+    private val novelRepository: com.sparta.novel_insight.repository.NovelRepository,
     private val objectMapper: ObjectMapper
 ) {
 
@@ -280,12 +281,9 @@ class AuthorDashboardService(
         val caches = mutableListOf<AuthorDashboardCache>()
 
         groupedByNovel.forEach { (novelId, logs) ->
-            // 실무: Novel 엔티티에서 authorId 조회
-            // val novel = novelRepository.findById(novelId).orElse(null) ?: return@forEach
-            // val authorId = novel.authorId
-
-            // 임시: 첫 로그에서 추출 (실무에서는 위 방식 사용)
-            val authorId = novelId // FIXME: Novel 엔티티 연동 필요
+            // Novel 엔티티에서 authorId 조회
+            val novel = novelRepository.findById(novelId).orElse(null) ?: return@forEach
+            val authorId = novel.authorId
 
             val cache = generateNovelDashboardCache(
                 authorId = authorId,
@@ -299,10 +297,21 @@ class AuthorDashboardService(
         }
 
         // 4. 작가 전체 통계 생성 (novelId = null)
-        val groupedByAuthor = allLogs.groupBy { it.novelId } // FIXME: authorId로 그룹핑
+        // novelId → authorId 매핑 생성
+        val novelIdToAuthorId = allLogs.mapNotNull { log ->
+            novelRepository.findById(log.novelId).orElse(null)?.let { novel ->
+                log.novelId to novel.authorId
+            }
+        }.toMap()
+
+        // authorId로 그룹핑
+        val groupedByAuthor = allLogs.groupBy { log ->
+            novelIdToAuthorId[log.novelId]
+        }.filterKeys { it != null } // null 키 제거
+
         groupedByAuthor.forEach { (authorId, logs) ->
             val cache = generateAuthorDashboardCache(
-                authorId = authorId,
+                authorId = authorId!!,  // filterKeys로 null 제거했으므로 안전
                 logs = logs,
                 targetDate = targetDate,
                 periodType = PeriodType.DAILY

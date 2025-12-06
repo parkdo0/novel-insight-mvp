@@ -4,6 +4,7 @@ import com.sparta.novel_insight.domain.*
 import com.sparta.novel_insight.dto.EpisodeResponse
 import com.sparta.novel_insight.repository.*
 import com.sparta.novel_insight.security.UserPrincipal
+import org.slf4j.LoggerFactory
 import org.springframework.data.redis.core.StringRedisTemplate
 import org.springframework.http.ResponseEntity
 import org.springframework.security.core.annotation.AuthenticationPrincipal
@@ -23,6 +24,9 @@ class EpisodeController(
     private val notificationService: com.sparta.novel_insight.service.NotificationService, // 알림 발송 서비스
     private val memberRepository: com.sparta.novel_insight.repository.MemberRepository // 작가 조회용
 ) {
+    companion object {
+        private val logger = LoggerFactory.getLogger(EpisodeController::class.java)
+    }
 
     @GetMapping("/novels/{novelId}/episodes")
     fun getEpisodes(
@@ -202,9 +206,7 @@ class EpisodeController(
             // - 사용자 경험 우선: 댓글은 반드시 저장되어야 함
             // - 알림은 부가 기능 (Nice-to-have)
             // - 오프라인 작가는 나중에 알림 조회 가능
-            println("댓글 알림 발송 실패: ${e.message}")
-            // TODO: 실무에서는 SLF4J Logger 사용
-            // logger.error("댓글 알림 발송 실패: episodeId=$episodeId, commentId=${comment.id}", e)
+            logger.error("댓글 알림 발송 실패: episodeId=$episodeId, commentId=${comment.id}", e)
         }
 
         return ResponseEntity.ok("등록 완료")
