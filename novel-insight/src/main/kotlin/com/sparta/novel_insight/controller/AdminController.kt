@@ -45,20 +45,20 @@ class AdminController(
         return try {
             val jdbcTemplate = JdbcTemplate(dataSource)
 
-            // mock-data.sql 파일 읽기
-            val sqlFile = File("/home/user/novel-insight-mvp/mock-data.sql")
+            // mock-data.sql 파일 읽기 (resources 폴더에서)
+            val resource = ClassPathResource("mock-data.sql")
 
-            if (!sqlFile.exists()) {
+            if (!resource.exists()) {
                 return ResponseEntity.badRequest().body(
                     mapOf(
                         "success" to false,
-                        "message" to "mock-data.sql 파일을 찾을 수 없습니다.",
-                        "path" to sqlFile.absolutePath
+                        "message" to "mock-data.sql 파일을 찾을 수 없습니다. resources 폴더를 확인하세요.",
+                        "path" to "classpath:mock-data.sql"
                     )
                 )
             }
 
-            val sqlScript = sqlFile.readText()
+            val sqlScript = resource.inputStream.bufferedReader().use { it.readText() }
 
             // SQL 스크립트를 세미콜론으로 분리하여 각 문장 실행
             // DELIMITER 처리를 위해 특별한 파싱 필요
