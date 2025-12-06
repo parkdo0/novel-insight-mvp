@@ -10,6 +10,8 @@ import com.sparta.novel_insight.service.KafkaProducerService
 // Apache Commons Text: HTML/XML 이스케이프 처리 유틸리티
 // StringEscapeUtils: XSS 공격 방지를 위한 문자열 이스케이프 도구
 import org.apache.commons.text.StringEscapeUtils
+// SLF4J Logger
+import org.slf4j.LoggerFactory
 // Spring Web MVC 관련 임포트
 import org.springframework.http.ResponseEntity
 // REST API 어노테이션들
@@ -154,6 +156,9 @@ class ReviewController(
      */
     private val memberRepository: com.sparta.novel_insight.repository.MemberRepository
 ) {
+    companion object {
+        private val logger = LoggerFactory.getLogger(ReviewController::class.java)
+    }
 
     /**
      * 리뷰 작성 API
@@ -393,9 +398,7 @@ class ReviewController(
             // - 사용자 경험 우선: 리뷰는 반드시 저장되어야 함
             // - 알림은 부가 기능 (Nice-to-have)
             // - 오프라인 사용자는 나중에 알림 조회 가능 (DB 저장 완료)
-            println("알림 발송 실패: ${e.message}")
-            // TODO: 실무에서는 SLF4J Logger 사용
-            // logger.error("리뷰 알림 발송 실패: novelId=${novel.id}, authorId=${novel.authorId}", e)
+            logger.error("리뷰 알림 발송 실패: novelId=${novel.id}, authorId=${novel.authorId}", e)
         }
 
         // 8단계: HTTP 응답 반환

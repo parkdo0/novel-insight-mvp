@@ -1,7 +1,12 @@
 package com.sparta.novel_insight.controller
 
+import com.sparta.novel_insight.exception.MemberNotFoundException
+import com.sparta.novel_insight.exception.NotificationNotFoundException
+import com.sparta.novel_insight.exception.UnauthorizedException
+
 import com.sparta.novel_insight.domain.Notification
 import com.sparta.novel_insight.repository.MemberRepository
+import com.sparta.novel_insight.repository.NotificationRepository
 import com.sparta.novel_insight.security.UserPrincipal
 import com.sparta.novel_insight.service.NotificationService
 import org.springframework.data.domain.Page
@@ -166,7 +171,15 @@ class NotificationController(
      * - NotificationService를 userId(Long) 기반으로 리팩토링 가능
      * - 현재는 Member 기반 API 일관성 유지를 위해 Repository 사용
      */
-    private val memberRepository: MemberRepository
+    private val memberRepository: MemberRepository,
+
+    /**
+     * NotificationRepository 의존성 주입
+     *
+     * 알림 권한 검증을 위해 사용합니다.
+     * 사용자가 자신의 알림만 수정/삭제할 수 있도록 제한합니다.
+     */
+    private val notificationRepository: NotificationRepository
 ) {
 
     /**
@@ -244,9 +257,7 @@ class NotificationController(
         // - Optional로 감싸서 안전하게 처리
         // - orElseThrow()로 명시적 예외 처리
         val member = memberRepository.findById(user.id)
-            .orElseThrow { RuntimeException("사용자를 찾을 수 없습니다") }
-        // TODO: 커스텀 예외 클래스 정의 (MemberNotFoundException)
-        // TODO: @ControllerAdvice로 전역 예외 처리 → 404 응답
+            .orElseThrow { MemberNotFoundException(user.id) }
 
         // 2단계: 미확인 알림 조회
         // notificationService.getUnreadNotifications():
@@ -455,17 +466,24 @@ class NotificationController(
      */
     @PutMapping("/{id}/read")
     fun markAsRead(
-        @PathVariable id: Long
+        @PathVariable id: Long,
+        @AuthenticationPrincipal user: UserPrincipal
     ): ResponseEntity<Map<String, String>> {
-        // 1단계: 알림 읽음 처리
+        // 1단계: 권한 검증
+        // - 현재 로그인 사용자가 알림의 recipient인지 확인
+        // - 타인의 알림 수정 시도 시 403 Forbidden 반환
+        val notification = notificationRepository.findById(id)
+            .orElseThrow { NotificationNotFoundException(id) }
+
+        if (notification.recipient.id != user.id) {
+            throw UnauthorizedException("이 알림에 접근할 권한이 없습니다.")
+        }
+
+        // 2단계: 알림 읽음 처리
         // notificationService.markAsRead():
         // - DB에서 알림 조회 (findById)
         // - isRead = true로 변경
         // - save() 또는 @Transactional로 자동 커밋
-        //
-        // TODO: 권한 검증 추가
-        // - 현재 로그인 사용자가 알림의 recipient인지 확인
-        // - 타인의 알림 수정 시도 시 403 Forbidden 반환
         notificationService.markAsRead(id)
 
         // 2단계: 성공 메시지 반환
