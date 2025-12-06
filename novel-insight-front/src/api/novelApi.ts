@@ -23,6 +23,7 @@ export interface Episode {
     isPurchased: boolean;
     viewCount: number;
     purchaseCount: number;
+    novelId: number;
 }
 
 export interface Novel {
