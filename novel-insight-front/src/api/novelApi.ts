@@ -84,3 +84,54 @@ export const toggleLike = async (commentId: number, type: 'LIKE' | 'DISLIKE') =>
     const response = await api.post(`/comments/${commentId}/like?type=${type}`);
     return response.data;
 };
+
+// 이전화/다음화 정보가 포함된 에피소드 상세 조회
+export interface EpisodeWithNav extends Episode {
+    prevEpisode?: { id: number; title: string };
+    nextEpisode?: { id: number; title: string };
+    episodeNumber?: number;
+}
+
+// 에피소드 목록 조회 (이전화/다음화 탐색용)
+export const getEpisodeNav = async (novelId: number, currentEpisodeId: number): Promise<EpisodeWithNav> => {
+    const episodes = await getEpisodes(novelId);
+    const currentIndex = episodes.findIndex((ep: Episode) => ep.id === currentEpisodeId);
+
+    const result: EpisodeWithNav = {
+        ...episodes[currentIndex],
+        episodeNumber: currentIndex + 1
+    };
+
+    if (currentIndex > 0) {
+        result.prevEpisode = {
+            id: episodes[currentIndex - 1].id,
+            title: episodes[currentIndex - 1].title
+        };
+    }
+
+    if (currentIndex < episodes.length - 1) {
+        result.nextEpisode = {
+            id: episodes[currentIndex + 1].id,
+            title: episodes[currentIndex + 1].title
+        };
+    }
+
+    return result;
+};
+
+// 명장면 분석용 재조회 로그 전송
+export interface ReplayLogRequest {
+    userId?: number;
+    episodeId: number;
+    sectionPercentage: number;
+    sectionEndPercentage: number;
+    sessionId: string;
+    viewerMode: 'SCROLL' | 'PAGE';
+    deviceType: 'MOBILE' | 'DESKTOP' | 'TABLET';
+    durationSeconds?: number;
+}
+
+export const recordSectionReplay = async (request: ReplayLogRequest) => {
+    const response = await api.post('/api/highlights/replay-log', request);
+    return response.data;
+};

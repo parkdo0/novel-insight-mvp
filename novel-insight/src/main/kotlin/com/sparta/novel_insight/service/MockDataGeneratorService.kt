@@ -106,16 +106,109 @@ class MockDataGeneratorService(
         private val NOUNS = listOf("검성", "마법사", "황제", "기사", "암살자", "영주", "현자", "용사", "악당", "공작")
         private val VERBS = listOf("지배", "정복", "구원", "복수", "사랑", "수호", "파괴", "창조")
 
-        // 에피소드 제목 패턴
-        private val EPISODE_PATTERNS = listOf(
-            "{n}화 - 운명적인 만남",
-            "{n}화 - 첫 번째 시련",
-            "{n}화 - 숨겨진 진실",
-            "{n}화 - 각성",
-            "{n}화 - 반전의 시작",
-            "{n}화 - 위기의 순간",
-            "{n}화 - 새로운 힘",
-            "{n}화 - 결전의 서막"
+        // 에피소드 제목 패턴 - 스토리 진행에 따라 다르게 적용
+        private val EPISODE_TITLE_OPENING = listOf(
+            "프롤로그: 운명의 시작",
+            "예언된 자",
+            "낯선 세계",
+            "각성의 전조",
+            "운명의 장난"
+        )
+
+        private val EPISODE_TITLE_DEVELOPMENT = listOf(
+            "숨겨진 진실",
+            "의문의 단서",
+            "예상치 못한 만남",
+            "성장의 징후",
+            "새로운 동료",
+            "시련의 시작",
+            "위기의 징조",
+            "불길한 예감",
+            "비밀의 문",
+            "결의를 다지며",
+            "스승의 가르침",
+            "수련의 길",
+            "첫 번째 관문",
+            "의심과 믿음",
+            "전진하는 발걸음"
+        )
+
+        private val EPISODE_TITLE_CLIMAX = listOf(
+            "결전의 서막",
+            "폭풍 전야",
+            "최후의 선택",
+            "반격의 시간",
+            "진정한 힘",
+            "깨어난 능력",
+            "운명의 대결",
+            "숨겨진 카드",
+            "역전의 기회",
+            "최강자의 등장"
+        )
+
+        private val EPISODE_TITLE_ENDING = listOf(
+            "여명이 밝아올 때",
+            "새로운 시작",
+            "에필로그",
+            "끝나지 않은 이야기",
+            "다음을 향해"
+        )
+
+        // 문단 템플릿 - 장르별, 상황별로 다양하게
+        private val SCENE_DESCRIPTIONS = listOf(
+            "창밖으로 비치는 햇살이 방 안을 환하게 물들였다. 먼지 입자들이 빛을 타고 춤추듯 흩날리는 모습이 마치 작은 요정들의 무도회 같았다.",
+            "바람이 불어왔다. 차갑지도 따뜻하지도 않은, 그저 존재를 알리듯 스치는 바람이었다. 그 바람에 실려 온 향기가 코끝을 간질였다.",
+            "어둠이 깊어지는 밤, 별빛만이 유일한 안내자였다. 달은 구름 사이로 숨었다 나타나기를 반복하며 묘한 분위기를 연출했다.",
+            "고요한 적막이 흘렀다. 아무 소리도 들리지 않는 그 침묵 속에서 심장 소리만이 또렷하게 울려 퍼졌다. 쿵, 쿵, 쿵.",
+            "눈앞에 펼쳐진 광경은 상상을 초월했다. 이런 곳이 정말 존재한다니, 살면서 단 한 번도 본 적 없는 절경이었다."
+        )
+
+        private val CHARACTER_ACTIONS = listOf(
+            "그는 천천히 고개를 들었다. 눈앞에 펼쳐진 광경에 숨이 멎는 듯했다. 이것이 바로 자신이 찾던 것인가. 오랜 여정의 끝에 마침내.",
+            "손에 쥔 검이 파르르 떨렸다. 긴장 때문이 아니었다. 두려움도 아니었다. 그것은 기대였다. 곧 시작될 전투에 대한 기대.",
+            "눈을 감았다. 어둠 속에서 더 명확하게 들려오는 것들이 있었다. 바람 소리, 풀잎이 스치는 소리, 그리고 멀리서 다가오는 발자국 소리.",
+            "주먹을 불끈 쥐었다. 이빨을 악물었다. 이번만큼은 절대로 물러서지 않을 것이다. 지금이 아니면 기회는 영영 오지 않을 테니까.",
+            "미소를 지었다. 차갑지도 따뜻하지도 않은, 의미를 알 수 없는 미소였다. 상대방은 그 미소의 의미를 알지 못해 불안해했다."
+        )
+
+        private val DIALOGUE_TEMPLATES = listOf(
+            "\"이게 대체 무슨 상황이지?\"\n\n그의 물음에 아무도 대답하지 않았다. 모두가 눈앞의 광경에 충격을 받은 것이 분명했다. 침묵이 길어질수록 불안감도 커져갔다.",
+            "\"걱정 마. 내가 다 알아서 할 테니까.\"\n\n자신감 넘치는 목소리였다. 하지만 그 말을 하는 당사자조차도 마음속으로는 확신이 없었다. 그저 허세일 뿐이었다.",
+            "\"왜 그랬어? 대체 왜?\"\n\n목소리가 갈라졌다. 분노인지 슬픔인지 구분할 수 없는 감정이 터져 나왔다. 대답을 들어야 했다. 반드시.",
+            "\"시간이 없어. 지금 바로 출발해야 해.\"\n\n다급한 목소리가 공기를 가르며 퍼져나갔다. 모두가 알았다. 이것이 마지막 기회라는 것을.",
+            "\"믿어도 되는 거야?\"\n\n의심 가득한 눈빛이 상대를 향했다. 신뢰는 쉽게 주어지는 것이 아니었다. 특히 이런 상황에서는."
+        )
+
+        private val INNER_THOUGHTS = listOf(
+            "'이건 분명 덫이야. 하지만 다른 선택지가 없잖아.'\n\n머릿속에서 수많은 생각이 교차했다. 위험을 감수하더라도 앞으로 나아가야 했다. 망설임은 죽음과 같았다.",
+            "'강해져야 해. 지금보다 더, 훨씬 더.'\n\n결심은 굳건했다. 아직 부족했다. 더 많은 시련이 필요했다. 그래야만 소중한 것들을 지킬 수 있으니까.",
+            "'왜 하필 나인 거지? 수많은 사람들 중에서.'\n\n운명이라는 것을 믿지 않았다. 하지만 지금 상황은 운명이라는 말 외에는 설명할 방법이 없었다.",
+            "'포기하면 안 돼. 여기서 포기하면 모든 게 끝이야.'\n\n지친 몸을 이끌고 한 발짝 더 내딛었다. 끝이 보이지 않는 길이었지만, 멈출 수는 없었다.",
+            "'이상하다. 분명 뭔가 놓치고 있어.'\n\n직감이 경고를 보내고 있었다. 겉으로 보이는 것이 전부가 아니었다. 더 깊이 파고들어야 했다."
+        )
+
+        private val TENSION_SCENES = listOf(
+            "심장이 미친 듯이 뛰었다. 입술이 바짝 말랐다. 한 순간의 실수도 용납되지 않는 상황이었다. 모든 감각을 곤두세우고 집중했다.",
+            "손에서 식은땀이 흘러내렸다. 근육이 긴장으로 경직되어 갔다. 숨을 참았다. 지금은 어떤 소리도 내서는 안 되었다.",
+            "시간이 느리게 흘러가는 것 같았다. 아니, 멈춘 것 같았다. 찰나의 순간이 영원처럼 느껴졌다. 이것이 바로 극한의 집중인가.",
+            "피가 끓어올랐다. 온몸의 세포가 활성화되는 것이 느껴졌다. 이 느낌을 알았다. 전투 본능이 깨어나고 있었다.",
+            "공포가 엄습해왔다. 다리가 후들거렸다. 하지만 도망칠 수 없었다. 뒤에는 지켜야 할 사람들이 있었으니까."
+        )
+
+        private val FANTASY_ELEMENTS = listOf(
+            "마나가 소용돌이치기 시작했다. 공기 중의 원소들이 불안정하게 요동쳤다. 곧 무언가 일어날 것 같은 예감이 들었다.",
+            "고대의 룬 문자가 빛을 발했다. 오래전 잊혀진 언어가 되살아나듯 공명했다. 이것이 바로 전설에서 말하던 그것인가.",
+            "공간이 일그러졌다. 시공간의 법칙이 무시당하는 듯한 기이한 현상이었다. 눈앞의 광경이 믿기지 않았다.",
+            "내면의 힘이 깨어나고 있었다. 잠들어 있던 잠재력이 마침내 눈을 뜨는 순간이었다. 온몸을 타고 흐르는 새로운 에너지.",
+            "차원의 틈새로 무언가가 비쳐 보였다. 이 세계가 아닌 다른 곳. 그곳에서 부름의 소리가 들려오고 있었다."
+        )
+
+        private val ROMANCE_ELEMENTS = listOf(
+            "눈이 마주쳤다. 순간, 세상의 모든 소음이 멈춘 것 같았다. 심장이 한 박자 쉬고 다시 뛰기 시작했다. 더 빠르게, 더 강하게.",
+            "손끝이 살짝 닿았다. 그 작은 접촉이 온몸에 전류를 흘려보낸 것 같았다. 얼굴이 붉어지는 것을 느꼈다.",
+            "그 사람의 향기가 바람에 실려왔다. 익숙한, 그리고 그리웠던 향기. 떠올리지 않으려 해도 자꾸만 생각나는 사람.",
+            "목소리가 떨렸다. 하고 싶은 말은 많았지만 입술이 쉽게 열리지 않았다. 이 감정을 어떻게 전해야 할지 몰랐다.",
+            "등 뒤로 따스한 온기가 느껴졌다. 아무 말 없이 곁에 서 있는 그 존재만으로도 마음이 편안해졌다."
         )
 
         // 리뷰 템플릿
@@ -280,8 +373,8 @@ class MockDataGeneratorService(
             repeat(episodeCount) { i ->
                 val isFree = i < 3 // 처음 3개는 무료
                 val episode = Episode(
-                    title = generateEpisodeTitle(i + 1),
-                    content = "에피소드 내용입니다. ".repeat(Random.nextInt(50, 200)),
+                    title = generateEpisodeTitle(i + 1, episodeCount),
+                    content = generateEpisodeContent(novel.genre),
                     episodeNumber = i + 1,
                     price = if (isFree) 0 else Random.nextInt(100, 500),
                     isFree = isFree,
@@ -291,9 +384,21 @@ class MockDataGeneratorService(
                 )
                 episodes.add(episode)
             }
+
+            // 배치 저장 (소설 10개마다)
+            if (episodes.size >= 300) {
+                episodeRepository.saveAll(episodes)
+                println("Progress: ${episodes.size} episodes generated for ${novel.title}")
+                episodes.clear()
+            }
         }
 
-        return episodeRepository.saveAll(episodes)
+        // 남은 에피소드 저장
+        if (episodes.isNotEmpty()) {
+            episodeRepository.saveAll(episodes)
+        }
+
+        return episodeRepository.findAll().toList()
     }
 
     // 리뷰 데이터 생성 (ReviewAnalysis도 함께 생성)
@@ -485,9 +590,102 @@ class MockDataGeneratorService(
             .replace("{동사}", VERBS.random())
     }
 
-    private fun generateEpisodeTitle(number: Int): String {
-        val pattern = EPISODE_PATTERNS.random()
-        return pattern.replace("{n}", number.toString())
+    private fun generateEpisodeTitle(number: Int, totalEpisodes: Int): String {
+        val progressRatio = number.toDouble() / totalEpisodes
+
+        val title = when {
+            number == 1 -> EPISODE_TITLE_OPENING.random()
+            progressRatio < 0.2 -> EPISODE_TITLE_OPENING.random()
+            progressRatio < 0.7 -> EPISODE_TITLE_DEVELOPMENT.random()
+            progressRatio < 0.9 -> EPISODE_TITLE_CLIMAX.random()
+            else -> EPISODE_TITLE_ENDING.random()
+        }
+
+        return "${number}화: $title"
+    }
+
+    // 3000자 이상의 현실적인 에피소드 내용 생성
+    //
+    // 여러 문단을 조합하여 스토리처럼 보이는 긴 콘텐츠를 생성합니다.
+    // 이탈 지점 분석을 위해 다양한 길이의 문단을 생성합니다.
+    private fun generateEpisodeContent(genre: String): String {
+        val paragraphs = mutableListOf<String>()
+
+        // 도입부 (장면 설명)
+        paragraphs.add(SCENE_DESCRIPTIONS.random())
+        paragraphs.add("")
+
+        // 캐릭터 행동
+        paragraphs.add(CHARACTER_ACTIONS.random())
+        paragraphs.add("")
+
+        // 장르별 요소 추가
+        when {
+            genre.contains("판타지") || genre.contains("무협") -> {
+                paragraphs.add(FANTASY_ELEMENTS.random())
+                paragraphs.add("")
+            }
+            genre.contains("로맨스") || genre.contains("BL") -> {
+                paragraphs.add(ROMANCE_ELEMENTS.random())
+                paragraphs.add("")
+            }
+            else -> {
+                paragraphs.add(TENSION_SCENES.random())
+                paragraphs.add("")
+            }
+        }
+
+        // 대화
+        paragraphs.add(DIALOGUE_TEMPLATES.random())
+        paragraphs.add("")
+
+        // 내면의 생각
+        paragraphs.add(INNER_THOUGHTS.random())
+        paragraphs.add("")
+
+        // 긴장감 있는 장면
+        paragraphs.add(TENSION_SCENES.random())
+        paragraphs.add("")
+
+        // 추가 장면들 (3000자 이상을 만들기 위해)
+        repeat(Random.nextInt(3, 6)) {
+            val elements = listOf(
+                SCENE_DESCRIPTIONS,
+                CHARACTER_ACTIONS,
+                DIALOGUE_TEMPLATES,
+                INNER_THOUGHTS,
+                TENSION_SCENES,
+                if (genre.contains("판타지") || genre.contains("무협")) FANTASY_ELEMENTS else TENSION_SCENES,
+                if (genre.contains("로맨스") || genre.contains("BL")) ROMANCE_ELEMENTS else CHARACTER_ACTIONS
+            )
+            paragraphs.add(elements.random().random())
+            paragraphs.add("")
+        }
+
+        // 마무리 장면
+        paragraphs.add(SCENE_DESCRIPTIONS.random())
+        paragraphs.add("")
+        paragraphs.add(CHARACTER_ACTIONS.random())
+
+        val content = paragraphs.joinToString("\n")
+
+        // 최소 3000자 보장
+        return if (content.length < 3000) {
+            val additionalContent = StringBuilder(content)
+            while (additionalContent.length < 3000) {
+                additionalContent.append("\n\n")
+                additionalContent.append(listOf(
+                    SCENE_DESCRIPTIONS,
+                    CHARACTER_ACTIONS,
+                    DIALOGUE_TEMPLATES,
+                    INNER_THOUGHTS,
+                    TENSION_SCENES
+                ).random().random())
+            }
+            additionalContent.toString()
+        } else {
+            content
+        }
     }
 }
 
