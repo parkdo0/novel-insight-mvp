@@ -1,6 +1,7 @@
 package com.sparta.novel_insight.controller
 
 import com.sparta.novel_insight.domain.MemberRole
+import com.sparta.novel_insight.service.AuthorDashboardService
 import com.sparta.novel_insight.service.MockDataGeneratorService
 import com.sparta.novel_insight.service.MockDataSummary
 import org.springframework.http.ResponseEntity
@@ -46,7 +47,8 @@ import org.springframework.web.bind.annotation.*
 @RestController
 @RequestMapping("/api/mock")
 class MockDataController(
-    private val mockDataGeneratorService: MockDataGeneratorService
+    private val mockDataGeneratorService: MockDataGeneratorService,
+    private val authorDashboardService: AuthorDashboardService
 ) {
 
     // 전체 Mock 데이터 생성
@@ -281,6 +283,115 @@ class MockDataController(
                 mapOf(
                     "success" to false,
                     "message" to "Failed to get status: ${e.message}"
+                )
+            )
+        }
+    }
+
+    // 대시보드 캐시 수동 생성
+    //
+    // 배치 작업이 새벽 3시에 실행되기 때문에,
+    // 개발/테스트 환경에서 수동으로 캐시를 생성할 때 사용합니다.
+    //
+    // ## 사용 예시
+    //
+    // ```bash
+    // POST /api/mock/generate-dashboard-cache
+    // ```
+    //
+    // @return 생성 결과
+    @PostMapping("/generate-dashboard-cache")
+    fun generateDashboardCache(): ResponseEntity<Map<String, Any>> {
+        val startTime = System.currentTimeMillis()
+
+        try {
+            // 읽기 로그가 있는지 확인
+            val readLogCount = mockDataGeneratorService.episodeReadLogRepository.count()
+            if (readLogCount == 0L) {
+                return ResponseEntity.badRequest().body(
+                    mapOf(
+                        "success" to false,
+                        "message" to "No read logs found. Please generate read logs first using /api/mock/generate-read-logs"
+                    )
+                )
+            }
+
+            // 대시보드 캐시 생성 (배치 작업 수동 실행)
+            authorDashboardService.generateDailyDashboardCache()
+            val duration = (System.currentTimeMillis() - startTime) / 1000
+
+            return ResponseEntity.ok(
+                mapOf(
+                    "success" to true,
+                    "message" to "Dashboard cache generated successfully",
+                    "durationSeconds" to duration
+                )
+            )
+        } catch (e: Exception) {
+            return ResponseEntity.internalServerError().body(
+                mapOf(
+                    "success" to false,
+                    "message" to "Failed to generate dashboard cache: ${e.message}",
+                    "durationSeconds" to (System.currentTimeMillis() - startTime) / 1000
+                )
+            )
+        }
+    }
+
+    // 읽기 로그 + 대시보드 캐시 한번에 생성
+    //
+    // ## 사용 예시
+    //
+    // ```bash
+    // POST /api/mock/generate-analytics-data?logCount=10000
+    // ```
+    //
+    // @param logCount 생성할 로그 수 (기본: 10000)
+    // @return 생성 결과
+    @PostMapping("/generate-analytics-data")
+    fun generateAnalyticsData(
+        @RequestParam(required = false, defaultValue = "10000") logCount: Int
+    ): ResponseEntity<Map<String, Any>> {
+        val startTime = System.currentTimeMillis()
+
+        try {
+            // 1. 기존 독자 및 에피소드 조회
+            val readers = mockDataGeneratorService.memberRepository.findAll()
+                .filter { it.role == MemberRole.READER }
+            val episodes = mockDataGeneratorService.episodeRepository.findAll()
+
+            if (readers.isEmpty() || episodes.isEmpty()) {
+                return ResponseEntity.badRequest().body(
+                    mapOf(
+                        "success" to false,
+                        "message" to "No members or episodes found. Please generate members and novels first."
+                    )
+                )
+            }
+
+            // 2. 읽기 로그 생성
+            val logs = mockDataGeneratorService.generateReadLogs(logCount, readers.toList(), episodes.toList(), 30)
+
+            // 3. 대시보드 캐시 생성
+            authorDashboardService.generateDailyDashboardCache()
+
+            val duration = (System.currentTimeMillis() - startTime) / 1000
+
+            return ResponseEntity.ok(
+                mapOf(
+                    "success" to true,
+                    "message" to "Analytics data generated successfully",
+                    "readLogsCreated" to logs.size,
+                    "dashboardCacheCreated" to true,
+                    "durationSeconds" to duration
+                )
+            )
+        } catch (e: Exception) {
+            return ResponseEntity.internalServerError().body(
+                mapOf(
+                    "success" to false,
+                    "message" to "Failed to generate analytics data: ${e.message}",
+                    "durationSeconds" to (System.currentTimeMillis() - startTime) / 1000
                 )
             )
         }
