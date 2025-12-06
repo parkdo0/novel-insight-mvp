@@ -1,106 +1,180 @@
 <!--
   ========================================
-  LoginForm - 로그인 폼 컴포넌트
+  LoginForm - 로그인 폼 컴포넌트 (Tailwind CSS 디자인 개선)
   ========================================
 
-  [Vue 컴포넌트 통신]
-  - Props Down, Events Up 패턴
-  - defineEmits: 자식 → 부모로 이벤트 발생
-  - TypeScript 타입 안전성 확보
-
-  [Pinia Store 사용]
-  - useAuthStore(): Pinia 스토어 접근 (전역 상태 관리)
-  - login() 메소드: JWT 인증 처리 후 localStorage 저장
-
-  [폼 처리 패턴]
-  - v-model: 양방향 바인딩 (Two-way Binding)
-  - 비동기 요청 중 버튼 비활성화 (:disabled="isLoading")
+  [디자인 개선 사항]
+  - 현대적인 input 디자인 (아이콘 포함)
+  - 로딩 애니메이션
+  - Focus 상태 강조
+  - Tailwind CSS 유틸리티 클래스 활용
 -->
 <script setup lang="ts">
 import { ref } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 
-/**
- * [이벤트 정의 - 부모 컴포넌트와 통신]
- * - 'log': 로그 메시지 전달 (부모가 화면에 표시)
- * - 'login-success': 로그인 성공 시 부모에게 알림 (리다이렉트 처리)
- *
- * TypeScript 제네릭으로 타입 안전성 확보
- */
 const emit = defineEmits<{
   (e: 'log', message: string): void
   (e: 'login-success'): void
 }>()
 
-/**
- * [Pinia Store - 전역 상태 관리]
- * - Vuex의 후속 라이브러리 (더 간결한 API)
- * - authStore.login(): JWT 토큰 받아서 localStorage 저장
- * - authStore.isLoggedIn: 로그인 상태 확인 (computed)
- */
 const authStore = useAuthStore()
 
-/**
- * [반응형 폼 상태]
- * - email, password: v-model로 input과 양방향 바인딩
- * - isLoading: 버튼 비활성화 및 텍스트 변경에 사용
- */
 const email = ref('new_user@sparta.com')
 const password = ref('1234')
 const isLoading = ref(false)
 
-/**
- * [로그인 처리 함수]
- * - async/await: 비동기 HTTP 요청 처리
- * - try-catch-finally: 에러 핸들링 표준 패턴
- * - emit: 부모 컴포넌트에게 성공/실패 알림
- */
 const handleLogin = async () => {
   isLoading.value = true
   try {
     await authStore.login(email.value, password.value)
     emit('log', `로그인 성공!`)
-
-    // 부모 컴포넌트가 리다이렉트 처리하도록 이벤트 발생
     emit('login-success')
-
   } catch (error: any) {
     emit('log', `로그인 실패: ${error.response?.data || error.message}`)
     alert("로그인 정보가 틀렸습니다.")
   } finally {
-    // 성공/실패 관계없이 로딩 상태 해제
     isLoading.value = false
+  }
+}
+
+// Enter 키로 로그인
+const handleKeyPress = (event: KeyboardEvent) => {
+  if (event.key === 'Enter' && !isLoading.value) {
+    handleLogin()
   }
 }
 </script>
 
 <template>
-  <div class="card">
-    <h2>로그인</h2>
-    <div class="form-group">
-      <!-- v-model: input value와 email ref 양방향 바인딩 -->
-      <input v-model="email" placeholder="이메일" />
+  <div class="space-y-6">
+    <div>
+      <h2 class="text-2xl font-bold text-gray-900 mb-2">
+        환영합니다! 👋
+      </h2>
+      <p class="text-gray-600">
+        계정에 로그인하여 계속하세요
+      </p>
     </div>
-    <div class="form-group">
-      <input v-model="password" type="password" placeholder="비밀번호" />
+
+    <!-- Email Input -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-2">
+        이메일
+      </label>
+      <div class="relative">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M16 12a4 4 0 10-8 0 4 4 0 008 0zm0 0v1.5a2.5 2.5 0 005 0V12a9 9 0 10-9 9m4.5-1.206a8.959 8.959 0 01-4.5 1.207" />
+          </svg>
+        </div>
+        <input
+          v-model="email"
+          type="email"
+          @keypress="handleKeyPress"
+          placeholder="example@sparta.com"
+          class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg
+                 focus:ring-2 focus:ring-purple-500 focus:border-transparent
+                 transition-all duration-200 text-gray-900 placeholder-gray-400"
+        />
+      </div>
     </div>
-    <!--
-      동적 속성 바인딩:
-      - :disabled: isLoading이 true면 버튼 비활성화
-      - 삼항 연산자: 로딩 중일 때 버튼 텍스트 변경
-    -->
-    <button @click="handleLogin" :disabled="isLoading">
-      {{ isLoading ? '로그인 중...' : '로그인' }}
+
+    <!-- Password Input -->
+    <div>
+      <label class="block text-sm font-medium text-gray-700 mb-2">
+        비밀번호
+      </label>
+      <div class="relative">
+        <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+          <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                  d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+          </svg>
+        </div>
+        <input
+          v-model="password"
+          type="password"
+          @keypress="handleKeyPress"
+          placeholder="••••••••"
+          class="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg
+                 focus:ring-2 focus:ring-purple-500 focus:border-transparent
+                 transition-all duration-200 text-gray-900 placeholder-gray-400"
+        />
+      </div>
+    </div>
+
+    <!-- Remember & Forgot Password -->
+    <div class="flex items-center justify-between text-sm">
+      <label class="flex items-center">
+        <input type="checkbox" class="rounded border-gray-300 text-purple-600 focus:ring-purple-500">
+        <span class="ml-2 text-gray-600">로그인 상태 유지</span>
+      </label>
+      <a href="#" class="text-purple-600 hover:text-purple-700 font-medium">
+        비밀번호를 잊으셨나요?
+      </a>
+    </div>
+
+    <!-- Login Button -->
+    <button
+      @click="handleLogin"
+      :disabled="isLoading"
+      class="w-full py-3 px-4 bg-gradient-to-r from-purple-600 to-pink-600
+             text-white font-semibold rounded-lg shadow-lg
+             hover:from-purple-700 hover:to-pink-700
+             focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2
+             disabled:from-gray-400 disabled:to-gray-500 disabled:cursor-not-allowed
+             transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98]
+             disabled:transform-none"
+    >
+      <span v-if="isLoading" class="flex items-center justify-center gap-2">
+        <svg class="animate-spin h-5 w-5" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        로그인 중...
+      </span>
+      <span v-else>로그인</span>
     </button>
+
+    <!-- Social Login -->
+    <div class="relative">
+      <div class="absolute inset-0 flex items-center">
+        <div class="w-full border-t border-gray-300"></div>
+      </div>
+      <div class="relative flex justify-center text-sm">
+        <span class="px-2 bg-white text-gray-500">또는</span>
+      </div>
+    </div>
+
+    <div class="grid grid-cols-2 gap-3">
+      <button
+        class="flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg
+               hover:bg-gray-50 transition-colors"
+      >
+        <svg class="w-5 h-5" viewBox="0 0 24 24">
+          <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+          <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+          <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+          <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+        </svg>
+        <span class="text-sm font-medium text-gray-700">Google</span>
+      </button>
+
+      <button
+        class="flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 rounded-lg
+               hover:bg-gray-50 transition-colors"
+      >
+        <svg class="w-5 h-5" fill="#1877F2" viewBox="0 0 24 24">
+          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+        </svg>
+        <span class="text-sm font-medium text-gray-700">Facebook</span>
+      </button>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.card { border: 1px solid #ddd; padding: 30px; border-radius: 12px; background: #fff; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
-.form-group { margin-bottom: 15px; }
-input { width: 100%; padding: 12px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box; font-size: 1rem; }
-input:focus { border-color: #42b883; outline: none; }
-button { width: 100%; padding: 12px; background: #42b883; color: white; border: none; font-weight: bold; border-radius: 6px; cursor: pointer; font-size: 1rem; }
-button:disabled { background: #ccc; }
-h2 { margin-top: 0; color: #333; }
+/* No additional styles needed - all using Tailwind CSS */
 </style>
