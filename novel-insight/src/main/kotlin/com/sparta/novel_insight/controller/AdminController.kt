@@ -40,7 +40,6 @@ class AdminController(
      *
      * @return 성공 메시지 및 생성된 데이터 개수
      */
-    @PostMapping("/generate-mock-data")
     @org.springframework.web.bind.annotation.GetMapping("/generate-mock-data")
     fun generateMockData(): ResponseEntity<Map<String, Any>> {
         return try {
