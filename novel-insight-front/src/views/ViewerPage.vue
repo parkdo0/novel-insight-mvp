@@ -107,9 +107,24 @@ const loadViewer = async () => {
     // 읽기 로그 시작
     await startReadingLog()
 
-  } catch (e) {
-    alert("볼 수 없는 회차입니다.")
-    router.back()
+  } catch (e: any) {
+    // 403 에러 = 구매 필요 (포인트 부족 또는 미구매)
+    if (e.response?.status === 403) {
+      if (!authStore.isAuthenticated) {
+        if (confirm("로그인이 필요합니다. 로그인 페이지로 이동하시겠습니까?")) {
+          router.push({ path: '/login', query: { redirect: route.fullPath } })
+        } else {
+          router.back()
+        }
+      } else if (confirm("포인트가 부족합니다. 포인트를 구매하시겠습니까?")) {
+        router.push('/mypage')
+      } else {
+        router.back()
+      }
+    } else {
+      alert("볼 수 없는 회차입니다.")
+      router.back()
+    }
   }
 }
 
