@@ -62,6 +62,20 @@ class EpisodeController(
         val episode = episodeRepository.findById(id)
             .orElseThrow { RuntimeException("회차를 찾을 수 없습니다.") }
 
+        // ★★★ [버그 수정] 유료 에피소드 구매 여부 체크 ★★★
+        if (!episode.isFree && episode.price > 0) {
+            // 로그인하지 않은 경우
+            if (user == null) {
+                return ResponseEntity.status(403).body(null)
+            }
+            // 작가 본인이 아니고, 구매하지 않은 경우
+            val isAuthor = episode.novel.authorId == user.id
+            val isPurchased = purchaseRepository.existsByUserIdAndEpisodeId(user.id, id)
+            if (!isAuthor && !isPurchased) {
+                return ResponseEntity.status(403).body(null)
+            }
+        }
+
         // 1. 사용자 식별 (로그인 ID 또는 guest)
         val viewerId = user?.id?.toString() ?: "guest"
 
