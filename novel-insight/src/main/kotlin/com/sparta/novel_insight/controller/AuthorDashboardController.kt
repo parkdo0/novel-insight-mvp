@@ -137,7 +137,25 @@ class AuthorDashboardController(
         return if (cache != null) {
             ResponseEntity.ok(cache.toDto())
         } else {
-            ResponseEntity.notFound().build()
+            // 캐시가 없으면 기본 빈 데이터 반환 (배치 미실행 시)
+            ResponseEntity.ok(
+                AuthorDashboardDto(
+                    authorId = authorId,
+                    novelId = null,
+                    aggregatedDate = targetDate,
+                    periodType = periodType,
+                    totalViews = 0,
+                    uniqueReaders = 0,
+                    avgReadingTimeMinutes = 0,
+                    completionRate = BigDecimal.ZERO,
+                    totalReviews = 0,
+                    positiveRate = BigDecimal.ZERO,
+                    negativeRate = BigDecimal.ZERO,
+                    insightScore = BigDecimal.ZERO,
+                    topEpisodes = null,
+                    dropOffEpisodes = null
+                )
+            )
         }
     }
 
