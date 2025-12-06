@@ -80,7 +80,7 @@ const totalCharged = computed(() => {
 
 const totalSpent = computed(() => {
   return histories.value
-    .filter(h => h.type === 'SPEND')
+    .filter(h => h.type === 'USE')
     .reduce((sum, h) => sum + h.amount, 0)
 })
 </script>
@@ -182,7 +182,7 @@ const totalSpent = computed(() => {
               </svg>
             </div>
             <p class="text-sm text-gray-700">
-              {{ histories.length > 0 ? formatDate(histories[0].createdAt) : '없음' }}
+              {{ histories.length > 0 && histories[0] ? formatDate(histories[0].createdAt) : '없음' }}
             </p>
           </div>
         </div>

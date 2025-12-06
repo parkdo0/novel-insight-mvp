@@ -3,7 +3,7 @@ import { ref, onMounted, onBeforeUnmount, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
 import { readEpisode, addComment, getComments, type Episode, type Comment } from '../api/novelApi'
-import { startReading, updateScroll, endReading } from '../api/behaviorApi'
+import { startReading, updateScroll } from '../api/behaviorApi'
 
 //
 // # 뷰어 페이지 (개선 버전)
@@ -128,7 +128,7 @@ const startReadingLog = async () => {
 
   try {
     // 1. 백엔드에 읽기 시작 로그 전송
-    await startReading(episode.value.id, episode.value.novel.id)
+    await startReading(episode.value.id, episode.value.novelId)
 
     // 2. 읽기 시작 시간 기록
     readingStartTime.value = new Date()
