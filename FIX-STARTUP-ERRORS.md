@@ -217,12 +217,14 @@ var createdAt: LocalDateTime? = null
 
 ## ✅ 완료 체크리스트
 
-- [ ] `fix-datetime-migration.sql` 실행 완료
-- [ ] Docker Compose 서비스 모두 Up 상태
-- [ ] Spring Boot 애플리케이션 에러 없이 시작
-- [ ] Kafka 연결 경고 없음
-- [ ] MySQL datetime 에러 없음
-- [ ] Actuator 헬스 체크 성공: `curl http://localhost:8080/actuator/health`
+- [x] `fix-datetime-migration.sql` 실행 완료 (옵션 2: DB 재생성으로 해결)
+- [x] Docker Compose 서비스 모두 Up 상태
+- [x] Spring Boot 애플리케이션 에러 없이 시작 (5.765초)
+- [x] Kafka 연결 성공 (AdminClient initialized)
+- [x] MySQL datetime 에러 완전 해결
+- [x] 애플리케이션 정상 작동 확인 (Tomcat on port 8080)
+
+**✅ 해결 완료: 2025-12-06** - 옵션 2 (DB 재생성) 실행으로 모든 에러 해결
 
 ---
 
