@@ -1,6 +1,5 @@
 package com.sparta.novel_insight.controller
 
-import kotlinx.coroutines.*
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.core.io.ClassPathResource
 import org.springframework.http.MediaType
@@ -13,6 +12,7 @@ import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
 import java.sql.Connection
 import javax.sql.DataSource
+import kotlin.concurrent.thread
 
 /**
  * 관리자 전용 컨트롤러
@@ -31,11 +31,11 @@ class AdminController(
      * http://localhost:8080/api/admin/generate-mock-data-start
      *
      * 이 API를 호출하면 백그라운드에서 Mock Data 생성이 시작되고,
-     * 바로 응답을 받습니다. 진행 상황은 /stream 엔드포인트에서 확인하세요.
+     * 바로 응답을 받습니다. 터미널에서 진행 상황을 확인하세요.
      */
     @GetMapping("/generate-mock-data-start")
     fun generateMockDataStart(): ResponseEntity<Map<String, Any>> {
-        CoroutineScope(Dispatchers.IO).launch {
+        thread {
             try {
                 generateMockDataAsync()
             } catch (e: Exception) {
@@ -47,7 +47,7 @@ class AdminController(
             mapOf(
                 "success" to true,
                 "message" to "Mock Data 생성이 백그라운드에서 시작되었습니다.",
-                "tip" to "진행 상황은 /api/admin/generate-mock-data-stream 에서 확인하세요."
+                "tip" to "터미널에서 진행 상황을 확인하세요."
             )
         )
     }
@@ -76,7 +76,7 @@ class AdminController(
     fun generateMockDataStream(): SseEmitter {
         val emitter = SseEmitter(900000L) // 15분 타임아웃
 
-        CoroutineScope(Dispatchers.IO).launch {
+        thread {
             try {
                 sendProgress(emitter, "🚀 Mock Data 생성 시작...")
                 sendProgress(emitter, "📂 mock-data.sql 파일 읽는 중...")
@@ -85,7 +85,7 @@ class AdminController(
                 if (!resource.exists()) {
                     sendProgress(emitter, "❌ 오류: mock-data.sql 파일을 찾을 수 없습니다.")
                     emitter.complete()
-                    return@launch
+                    return@thread
                 }
 
                 sendProgress(emitter, "✅ 파일 발견!")
@@ -134,9 +134,9 @@ class AdminController(
                 )
 
                 sendProgress(emitter, "")
-                sendProgress(emitter, "=" .repeat(50))
+                sendProgress(emitter, "=".repeat(50))
                 sendProgress(emitter, "🎉 Mock Data 생성 완료!")
-                sendProgress(emitter, "=" .repeat(50))
+                sendProgress(emitter, "=".repeat(50))
                 sendProgress(emitter, "")
                 sendProgress(emitter, "📊 생성된 데이터:")
                 sendProgress(emitter, "  👥 회원: ${counts["members"]}명")
@@ -234,7 +234,7 @@ class AdminController(
     /**
      * 비동기 Mock Data 생성 (내부 사용)
      */
-    private suspend fun generateMockDataAsync() {
+    private fun generateMockDataAsync() {
         val resource = ClassPathResource("mock-data.sql")
         if (!resource.exists()) {
             println("mock-data.sql 파일을 찾을 수 없습니다.")
@@ -258,8 +258,8 @@ class AdminController(
     /**
      * SSE 진행 상황 전송 헬퍼 함수
      */
-    private suspend fun sendProgress(emitter: SseEmitter, message: String) {
-        delay(100) // 메시지가 너무 빨리 전송되지 않도록
+    private fun sendProgress(emitter: SseEmitter, message: String) {
+        Thread.sleep(100) // 메시지가 너무 빨리 전송되지 않도록
         try {
             emitter.send(
                 SseEmitter.event()
