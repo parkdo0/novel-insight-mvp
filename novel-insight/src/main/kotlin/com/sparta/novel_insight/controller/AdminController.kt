@@ -41,7 +41,10 @@ class AdminController(
      * 예상 소요 시간: 10-15분
      */
     @GetMapping("/generate-mock-data-stream", produces = ["text/event-stream;charset=UTF-8"])
-    fun generateMockDataStream(): SseEmitter {
+    fun generateMockDataStream(response: jakarta.servlet.http.HttpServletResponse): SseEmitter {
+        response.characterEncoding = "UTF-8"
+        response.contentType = "text/event-stream;charset=UTF-8"
+
         val emitter = SseEmitter(900000L) // 15분 타임아웃
 
         thread {
@@ -336,15 +339,16 @@ class AdminController(
 
             for (i in 1..batchSize) {
                 val episodeId = (1..totalEpisodes).random()
-                val userId = 51 + (1..1000).random()
+                val readerId = 51 + (1..1000).random()
                 val content = commentContents.random()
+                val writerName = "독자${readerId - 50}"
 
-                values.add("('$content', $userId, $episodeId, DATE_SUB(NOW(), INTERVAL ${(1..60).random()} DAY))")
+                values.add("('$content', '$writerName', $readerId, $episodeId, 0, 0, DATE_SUB(NOW(), INTERVAL ${(1..60).random()} DAY))")
             }
 
             jdbcTemplate.execute(
                 """
-                INSERT INTO episode_comment (content, user_id, episode_id, created_at)
+                INSERT INTO episode_comment (content, writer_name, writer_id, episode_id, like_count, dislike_count, created_at)
                 VALUES ${values.joinToString(", ")}
                 """
             )
