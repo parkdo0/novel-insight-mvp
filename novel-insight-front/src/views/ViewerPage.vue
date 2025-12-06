@@ -9,7 +9,6 @@ import {
   getEpisodeNav,
   toggleLike,
   recordSectionReplay,
-  type Episode,
   type Comment,
   type EpisodeWithNav
 } from '../api/novelApi'
