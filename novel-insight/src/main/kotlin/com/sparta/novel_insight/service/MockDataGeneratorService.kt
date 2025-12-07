@@ -537,8 +537,7 @@ class MockDataGeneratorService(
                 userId = reader.id!!,
                 novelId = novel.id!!,
                 rating = rating,
-                createdAt = LocalDateTime.now().minusDays(Random.nextLong(30)),
-                novel = novel
+                createdAt = LocalDateTime.now().minusDays(Random.nextLong(30))
             )
             reviews.add(review)
 

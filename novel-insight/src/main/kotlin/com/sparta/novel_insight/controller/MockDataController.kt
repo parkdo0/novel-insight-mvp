@@ -65,7 +65,7 @@ class MockDataController(
     // 모든 데이터를 삭제하고 새로 생성합니다.
     // 실시간으로 진행 상황을 볼 수 있습니다!
     //
-    @GetMapping("/reset-and-generate", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+    @GetMapping("/reset-and-generate", produces = ["text/event-stream;charset=UTF-8"])
     fun resetAndGenerateAll(): SseEmitter {
         val emitter = SseEmitter(600000L) // 10분 타임아웃
 
@@ -73,42 +73,42 @@ class MockDataController(
             val startTime = System.currentTimeMillis()
             try {
                 // 1. 모든 데이터 삭제
-                emitter.send("🗑️ [1/5] 기존 데이터 삭제 중...")
+                sendMessage(emitter, "[1/5] 기존 데이터 삭제 중...")
                 mockDataGeneratorService.clearAllData()
-                emitter.send("✅ [1/5] 기존 데이터 삭제 완료!")
+                sendMessage(emitter, "[1/5] 기존 데이터 삭제 완료!")
 
                 // 2. 스키마 수정
-                emitter.send("🔧 [2/5] 스키마 수정 중 (episode.content → LONGTEXT)...")
+                sendMessage(emitter, "[2/5] 스키마 수정 중 (episode.content -> LONGTEXT)...")
                 mockDataGeneratorService.fixSchema()
-                emitter.send("✅ [2/5] 스키마 수정 완료!")
+                sendMessage(emitter, "[2/5] 스키마 수정 완료!")
 
                 // 3. Mock 데이터 생성
-                emitter.send("🚀 [3/5] Mock 데이터 생성 시작...")
-                emitter.send("   👥 회원 생성 중 (작가 50명, 독자 1000명)...")
+                sendMessage(emitter, "[3/5] Mock 데이터 생성 시작...")
+                sendMessage(emitter, "    회원 생성 중 (작가 50명, 독자 1000명)...")
                 val summary = mockDataGeneratorService.generateAllMockData(false)
-                emitter.send("✅ [3/5] Mock 데이터 생성 완료!")
-                emitter.send("   - 회원: ${summary.members}명")
-                emitter.send("   - 소설: ${summary.novels}편")
-                emitter.send("   - 에피소드: ${summary.episodes}개 (3000자+ 내용)")
-                emitter.send("   - 리뷰: ${summary.reviews}개")
-                emitter.send("   - 읽기 로그: ${summary.readLogs}개")
+                sendMessage(emitter, "[3/5] Mock 데이터 생성 완료!")
+                sendMessage(emitter, "    - 회원: ${summary.members}명")
+                sendMessage(emitter, "    - 소설: ${summary.novels}편")
+                sendMessage(emitter, "    - 에피소드: ${summary.episodes}개 (3000자+ 내용)")
+                sendMessage(emitter, "    - 리뷰: ${summary.reviews}개")
+                sendMessage(emitter, "    - 읽기 로그: ${summary.readLogs}개")
 
                 // 4. 대시보드 캐시 생성
-                emitter.send("📊 [4/5] 대시보드 캐시 생성 중...")
+                sendMessage(emitter, "[4/5] 대시보드 캐시 생성 중...")
                 authorDashboardService.generateDailyDashboardCache()
-                emitter.send("✅ [4/5] 대시보드 캐시 생성 완료!")
+                sendMessage(emitter, "[4/5] 대시보드 캐시 생성 완료!")
 
                 // 5. 완료
                 val duration = (System.currentTimeMillis() - startTime) / 1000
-                emitter.send("🎉 [5/5] 모든 작업 완료! (소요시간: ${duration}초)")
-                emitter.send("")
-                emitter.send("📌 이제 대시보드에서 데이터를 확인할 수 있습니다!")
+                sendMessage(emitter, "[5/5] 모든 작업 완료! (소요시간: ${duration}초)")
+                sendMessage(emitter, "")
+                sendMessage(emitter, "이제 대시보드에서 데이터를 확인할 수 있습니다!")
 
                 emitter.complete()
             } catch (e: Exception) {
                 e.printStackTrace()
                 try {
-                    emitter.send("❌ 오류 발생: ${e.message}")
+                    sendMessage(emitter, "오류 발생: ${e.message}")
                     emitter.completeWithError(e)
                 } catch (ex: Exception) {
                     // ignore
@@ -117,6 +117,10 @@ class MockDataController(
         }
 
         return emitter
+    }
+
+    private fun sendMessage(emitter: SseEmitter, message: String) {
+        emitter.send(SseEmitter.event().data(message, MediaType.valueOf("text/plain;charset=UTF-8")))
     }
 
     // 기존 데이터에 추가로 생성 (기존 데이터 유지)
