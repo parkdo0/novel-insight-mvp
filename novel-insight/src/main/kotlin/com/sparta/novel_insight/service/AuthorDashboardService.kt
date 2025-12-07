@@ -668,6 +668,11 @@ class AuthorDashboardService(
         )
     }
 
+    // 캐시 개수 조회 (진행상황 표시용)
+    fun getCacheCount(): Long {
+        return authorDashboardCacheRepository.count()
+    }
+
     // ==========================================
     // 관리자 대시보드 (전체 통계)
     // ==========================================

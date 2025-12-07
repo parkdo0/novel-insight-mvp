@@ -97,11 +97,17 @@ class MockDataController(
                 sendProgress(emitter, "    - 에피소드: ${summary.episodes}개 (3000자+ 내용)")
                 sendProgress(emitter, "    - 리뷰: ${summary.reviews}개")
                 sendProgress(emitter, "    - 읽기 로그: ${summary.readLogs}개")
+                sendProgress(emitter, "    - 이탈지점 분석: ${summary.dropOffPoints}개")
 
-                // 4. 대시보드 캐시 생성 (오늘 날짜로!)
-                sendProgress(emitter, "[4/5] 대시보드 캐시 생성 중...")
+                // 4. 대시보드 캐시 생성 (30일치!)
+                sendProgress(emitter, "[4/5] 대시보드 캐시 생성 중 (30일치 트렌드)...")
+                sendProgress(emitter, "    이 작업은 몇 분 소요될 수 있습니다...")
                 authorDashboardService.generateTodayDashboardCache()
                 sendProgress(emitter, "[4/5] 대시보드 캐시 생성 완료!")
+
+                // 생성된 캐시 개수 확인
+                val cacheCount = authorDashboardService.getCacheCount()
+                sendProgress(emitter, "    - 캐시 데이터: ${cacheCount}개 생성됨")
 
                 // 5. 완료
                 val duration = (System.currentTimeMillis() - startTime) / 1000
