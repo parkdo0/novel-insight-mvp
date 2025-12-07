@@ -53,16 +53,14 @@ class MockDataController(
 
     // ★★★ [추천] 처음부터 완전히 새로 생성 (기존 데이터 삭제) ★★★
     //
-    // ## 사용 예시
+    // ## 사용 예시 (브라우저에서 바로 접속!)
     //
-    // ```bash
-    // POST /api/mock/reset-and-generate
-    // ```
+    // http://localhost:8080/api/mock/reset-and-generate
     //
     // 모든 데이터를 삭제하고 새로 생성합니다.
     // 에피소드 내용, 제목 등 모든 것이 새로 생성됩니다.
     //
-    @PostMapping("/reset-and-generate")
+    @GetMapping("/reset-and-generate")
     fun resetAndGenerateAll(): ResponseEntity<MockDataResponse> {
         val startTime = System.currentTimeMillis()
 
@@ -101,16 +99,14 @@ class MockDataController(
 
     // 기존 데이터에 추가로 생성 (기존 데이터 유지)
     //
-    // ## 사용 예시
+    // ## 사용 예시 (브라우저에서 바로 접속!)
     //
-    // ```bash
-    // POST /api/mock/add-data
-    // ```
+    // http://localhost:8080/api/mock/add-data
     //
     // 기존 데이터를 유지하면서 추가 데이터를 생성합니다.
     // 주의: 이메일 중복 등의 이유로 실패할 수 있습니다.
     //
-    @PostMapping("/add-data")
+    @GetMapping("/add-data")
     fun addMockData(): ResponseEntity<MockDataResponse> {
         val startTime = System.currentTimeMillis()
 
@@ -139,7 +135,7 @@ class MockDataController(
     }
 
     // [레거시] 전체 Mock 데이터 생성
-    @PostMapping("/generate-all")
+    @GetMapping("/generate-all")
     fun generateAllMockData(
         @RequestParam(required = false, defaultValue = "false") clearExisting: Boolean
     ): ResponseEntity<MockDataResponse> {
@@ -173,15 +169,8 @@ class MockDataController(
     }
 
     // 회원 데이터만 생성
-    //
-    // ```bash
-    // POST /api/mock/generate-members?authors=20&readers=500
-    // ```
-    //
-    // @param authors 작가 수 (기본: 50)
-    // @param readers 독자 수 (기본: 1000)
-    // @return 생성된 회원 수
-    @PostMapping("/generate-members")
+    // http://localhost:8080/api/mock/generate-members?authors=20&readers=500
+    @GetMapping("/generate-members")
     fun generateMembers(
         @RequestParam(required = false, defaultValue = "50") authors: Int,
         @RequestParam(required = false, defaultValue = "1000") readers: Int
@@ -209,21 +198,8 @@ class MockDataController(
     }
 
     // 읽기 로그만 대량 생성 (성능 테스트용)
-    //
-    // ## 사용 예시
-    //
-    // ```bash
-    // # 10만 개 로그 생성 (빠름)
-    // POST /api/mock/generate-read-logs?count=100000
-    //
-    // # 100만 개 로그 생성 (느림, ~10분)
-    // POST /api/mock/generate-read-logs?count=1000000
-    // ```
-    //
-    // @param count 로그 수
-    // @param days 최근 N일간 데이터
-    // @return 생성 결과
-    @PostMapping("/generate-read-logs")
+    // http://localhost:8080/api/mock/generate-read-logs?count=100000
+    @GetMapping("/generate-read-logs")
     fun generateReadLogs(
         @RequestParam(required = false, defaultValue = "500000") count: Int,
         @RequestParam(required = false, defaultValue = "30") days: Int
@@ -267,22 +243,9 @@ class MockDataController(
         }
     }
 
-    // 기존 데이터 전체 삭제
-    //
-    // ## 주의사항
-    //
-    // ⚠️ **되돌릴 수 없습니다!**
-    //
-    // - 모든 테이블 데이터 삭제
-    // - FK 제약조건 역순으로 삭제
-    // - 프로덕션 환경에서는 절대 실행 금지
-    //
-    // ```bash
-    // DELETE /api/mock/clear-all
-    // ```
-    //
-    // @return 삭제 결과
-    @DeleteMapping("/clear-all")
+    // 기존 데이터 전체 삭제 (TRUNCATE로 빠르게!)
+    // http://localhost:8080/api/mock/clear-all
+    @GetMapping("/clear-all")
     fun clearAllData(): ResponseEntity<Map<String, Any>> {
         try {
             mockDataGeneratorService.clearAllData()
@@ -345,18 +308,8 @@ class MockDataController(
     }
 
     // 대시보드 캐시 수동 생성
-    //
-    // 배치 작업이 새벽 3시에 실행되기 때문에,
-    // 개발/테스트 환경에서 수동으로 캐시를 생성할 때 사용합니다.
-    //
-    // ## 사용 예시
-    //
-    // ```bash
-    // POST /api/mock/generate-dashboard-cache
-    // ```
-    //
-    // @return 생성 결과
-    @PostMapping("/generate-dashboard-cache")
+    // http://localhost:8080/api/mock/generate-dashboard-cache
+    @GetMapping("/generate-dashboard-cache")
     fun generateDashboardCache(): ResponseEntity<Map<String, Any>> {
         val startTime = System.currentTimeMillis()
 
@@ -395,16 +348,8 @@ class MockDataController(
     }
 
     // 읽기 로그 + 대시보드 캐시 한번에 생성
-    //
-    // ## 사용 예시
-    //
-    // ```bash
-    // POST /api/mock/generate-analytics-data?logCount=10000
-    // ```
-    //
-    // @param logCount 생성할 로그 수 (기본: 10000)
-    // @return 생성 결과
-    @PostMapping("/generate-analytics-data")
+    // http://localhost:8080/api/mock/generate-analytics-data?logCount=10000
+    @GetMapping("/generate-analytics-data")
     fun generateAnalyticsData(
         @RequestParam(required = false, defaultValue = "10000") logCount: Int
     ): ResponseEntity<Map<String, Any>> {

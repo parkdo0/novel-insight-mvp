@@ -78,7 +78,8 @@ class MockDataGeneratorService(
     private val authorDashboardCacheRepository: AuthorDashboardCacheRepository,
     private val sectionReplayLogRepository: SectionReplayLogRepository,
     private val dropOffPointRepository: DropOffPointRepository,
-    private val refreshTokenRepository: RefreshTokenRepository
+    private val refreshTokenRepository: RefreshTokenRepository,
+    private val entityManager: jakarta.persistence.EntityManager
 ) {
 
     companion object {
@@ -310,40 +311,52 @@ class MockDataGeneratorService(
         )
     }
 
-    // 기존 데이터 전체 삭제
+    // 기존 데이터 전체 삭제 (TRUNCATE 사용 - 매우 빠름)
     //
-    // WHY 순서가 중요?
-    // - FK 제약조건 역순으로 삭제해야 함
-    // - 가장 하위 테이블부터 삭제
+    // DELETE 대신 TRUNCATE 사용
+    // - DELETE: 행 하나씩 삭제 → 느림
+    // - TRUNCATE: 테이블 전체 삭제 → 즉시 완료
     @Transactional
     fun clearAllData() {
-        println("🗑️ Clearing all data...")
+        println("🗑️ Clearing all data with TRUNCATE...")
+        val startTime = System.currentTimeMillis()
 
-        // 1. 분석/로그 데이터 (최하위)
-        sectionReplayLogRepository.deleteAll()
-        dropOffPointRepository.deleteAll()
-        authorDashboardCacheRepository.deleteAll()
-        episodeReadLogRepository.deleteAll()
-        reviewAnalysisRepository.deleteAll()
+        // FK 체크 비활성화 후 TRUNCATE 실행
+        entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 0").executeUpdate()
 
-        // 2. 사용자 활동 데이터
-        commentLikeRepository.deleteAll()
-        episodeCommentRepository.deleteAll()
-        notificationRepository.deleteAll()
-        purchaseRepository.deleteAll()
-        pointHistoryRepository.deleteAll()
-        pointRepository.deleteAll()
-        refreshTokenRepository.deleteAll()
+        val tables = listOf(
+            "section_replay_log",
+            "drop_off_point",
+            "author_dashboard_cache",
+            "episode_read_log",
+            "review_analysis",
+            "comment_like",
+            "episode_comment",
+            "notification",
+            "purchase",
+            "point_history",
+            "point",
+            "refresh_token",
+            "review",
+            "episode",
+            "novel",
+            "member"
+        )
 
-        // 3. 콘텐츠 데이터
-        reviewRepository.deleteAll()
-        episodeRepository.deleteAll()
-        novelRepository.deleteAll()
+        tables.forEach { table ->
+            try {
+                entityManager.createNativeQuery("TRUNCATE TABLE $table").executeUpdate()
+                println("  ✓ $table truncated")
+            } catch (e: Exception) {
+                println("  ✗ $table failed: ${e.message}")
+            }
+        }
 
-        // 4. 회원 데이터 (최상위)
-        memberRepository.deleteAll()
+        // FK 체크 다시 활성화
+        entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate()
 
-        println("✅ All data cleared!")
+        val duration = System.currentTimeMillis() - startTime
+        println("✅ All data cleared in ${duration}ms!")
     }
 
     // 회원 데이터 생성
