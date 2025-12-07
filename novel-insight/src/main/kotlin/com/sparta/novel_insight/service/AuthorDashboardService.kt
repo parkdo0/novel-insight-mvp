@@ -407,15 +407,18 @@ class AuthorDashboardService(
         // Phase 6: 행동 분석 데이터
         val totalViews = logs.size
         val uniqueReaders = logs.distinctBy { it.sessionId }.size
-        val avgReadingTime = logs.mapNotNull { it.readingDurationSeconds }.average().toInt()
-        val completionRate = logs.count { it.isCompleted }.toDouble() / logs.size * 100
+        val avgReadingTime = if (logs.isNotEmpty()) {
+            logs.mapNotNull { it.readingDurationSeconds }.average().takeIf { !it.isNaN() }?.toInt() ?: 0
+        } else 0
+        val completionRate = if (logs.isNotEmpty()) {
+            logs.count { it.isCompleted }.toDouble() / logs.size * 100
+        } else 0.0
 
-        // Phase 5: 감성 분석 데이터
+        // Phase 5: 감성 분석 데이터 (안전하게 접근)
         val sentimentStats = reviewAnalysisRepository.getStatisticsByNovelId(novelId)
-        val totalReviews = (sentimentStats?.get(0) as? Long)?.toInt() ?: 0
-        val positiveCount = (sentimentStats?.get(1) as? Long)?.toInt() ?: 0
-        val negativeCount = (sentimentStats?.get(2) as? Long)?.toInt() ?: 0
-        val neutralCount = (sentimentStats?.get(3) as? Long)?.toInt() ?: 0
+        val totalReviews = sentimentStats?.getOrNull(0)?.let { (it as? Long)?.toInt() } ?: 0
+        val positiveCount = sentimentStats?.getOrNull(1)?.let { (it as? Long)?.toInt() } ?: 0
+        val negativeCount = sentimentStats?.getOrNull(2)?.let { (it as? Long)?.toInt() } ?: 0
 
         val positiveRate = if (totalReviews > 0) {
             BigDecimal(positiveCount).divide(BigDecimal(totalReviews), 2, RoundingMode.HALF_UP)
@@ -431,9 +434,14 @@ class AuthorDashboardService(
             BigDecimal.ZERO
         }
 
-        // 베스트/워스트 에피소드 (JSON)
-        val bestEpisodes = dropOffAnalysisService.getBestEpisodes(novelId, targetDate, 5)
-        val worstEpisodes = dropOffAnalysisService.getWorstEpisodes(novelId, targetDate, 5)
+        // 베스트/워스트 에피소드 (JSON) - 에러 방지
+        val bestEpisodes = try {
+            dropOffAnalysisService.getBestEpisodes(novelId, targetDate, 5)
+        } catch (e: Exception) { emptyList() }
+
+        val worstEpisodes = try {
+            dropOffAnalysisService.getWorstEpisodes(novelId, targetDate, 5)
+        } catch (e: Exception) { emptyList() }
 
         val topEpisodesJson = objectMapper.writeValueAsString(
             bestEpisodes.map {
@@ -451,7 +459,7 @@ class AuthorDashboardService(
                     "episodeId" to it.episodeId,
                     "completionRate" to it.completionRate,
                     "totalReaders" to it.totalReaders,
-                    "highestDropOffRange" to it.getHighestDropOffRange().first
+                    "highestDropOffRange" to try { it.getHighestDropOffRange().first } catch (e: Exception) { "N/A" }
                 )
             }
         )
@@ -493,12 +501,16 @@ class AuthorDashboardService(
         // Phase 6: 행동 분석 데이터 (전체 소설 합산)
         val totalViews = logs.size
         val uniqueReaders = logs.distinctBy { it.sessionId }.size
-        val avgReadingTime = logs.mapNotNull { it.readingDurationSeconds }.average().toInt()
-        val completionRate = logs.count { it.isCompleted }.toDouble() / logs.size * 100
+        val avgReadingTime = if (logs.isNotEmpty()) {
+            logs.mapNotNull { it.readingDurationSeconds }.average().takeIf { !it.isNaN() }?.toInt() ?: 0
+        } else 0
+        val completionRate = if (logs.isNotEmpty()) {
+            logs.count { it.isCompleted }.toDouble() / logs.size * 100
+        } else 0.0
 
-        // Phase 5: 감성 분석 데이터 (전체 소설 합산)
+        // Phase 5: 감성 분석 데이터 (전체 소설 합산, 안전하게 접근)
         val sentimentStats = reviewAnalysisRepository.getStatisticsByAuthorId(authorId)
-        val totalReviews = (sentimentStats?.get(0) as? Long)?.toInt() ?: 0
+        val totalReviews = sentimentStats?.getOrNull(0)?.let { (it as? Long)?.toInt() } ?: 0
 
         // 작가 전체 통계는 소설별 통계의 평균 사용
         val allNovelCaches = getAllNovelDashboards(authorId, targetDate, periodType)
