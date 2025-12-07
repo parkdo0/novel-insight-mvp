@@ -4,8 +4,11 @@ import com.sparta.novel_insight.domain.MemberRole
 import com.sparta.novel_insight.service.AuthorDashboardService
 import com.sparta.novel_insight.service.MockDataGeneratorService
 import com.sparta.novel_insight.service.MockDataSummary
+import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import java.util.concurrent.Executors
 
 // # MockDataController
 //
@@ -51,53 +54,69 @@ class MockDataController(
     private val authorDashboardService: AuthorDashboardService
 ) {
 
-    // ★★★ [추천] 처음부터 완전히 새로 생성 (기존 데이터 삭제) ★★★
+    private val executor = Executors.newCachedThreadPool()
+
+    // ★★★ [추천] 처음부터 완전히 새로 생성 (기존 데이터 삭제) - 실시간 진행률 표시! ★★★
     //
     // ## 사용 예시 (브라우저에서 바로 접속!)
     //
     // http://localhost:8080/api/mock/reset-and-generate
     //
     // 모든 데이터를 삭제하고 새로 생성합니다.
-    // 에피소드 내용, 제목 등 모든 것이 새로 생성됩니다.
+    // 실시간으로 진행 상황을 볼 수 있습니다!
     //
-    @GetMapping("/reset-and-generate")
-    fun resetAndGenerateAll(): ResponseEntity<MockDataResponse> {
-        val startTime = System.currentTimeMillis()
+    @GetMapping("/reset-and-generate", produces = [MediaType.TEXT_EVENT_STREAM_VALUE])
+    fun resetAndGenerateAll(): SseEmitter {
+        val emitter = SseEmitter(600000L) // 10분 타임아웃
 
-        try {
-            // 1. 모든 데이터 삭제 + 스키마 수정
-            mockDataGeneratorService.clearAllData()
+        executor.execute {
+            val startTime = System.currentTimeMillis()
+            try {
+                // 1. 모든 데이터 삭제
+                emitter.send("🗑️ [1/5] 기존 데이터 삭제 중...")
+                mockDataGeneratorService.clearAllData()
+                emitter.send("✅ [1/5] 기존 데이터 삭제 완료!")
 
-            // 2. 스키마 한번 더 확인 (LONGTEXT)
-            mockDataGeneratorService.fixSchema()
+                // 2. 스키마 수정
+                emitter.send("🔧 [2/5] 스키마 수정 중 (episode.content → LONGTEXT)...")
+                mockDataGeneratorService.fixSchema()
+                emitter.send("✅ [2/5] 스키마 수정 완료!")
 
-            // 3. 새 데이터 생성
-            val summary = mockDataGeneratorService.generateAllMockData(false)
+                // 3. Mock 데이터 생성
+                emitter.send("🚀 [3/5] Mock 데이터 생성 시작...")
+                emitter.send("   👥 회원 생성 중 (작가 50명, 독자 1000명)...")
+                val summary = mockDataGeneratorService.generateAllMockData(false)
+                emitter.send("✅ [3/5] Mock 데이터 생성 완료!")
+                emitter.send("   - 회원: ${summary.members}명")
+                emitter.send("   - 소설: ${summary.novels}편")
+                emitter.send("   - 에피소드: ${summary.episodes}개 (3000자+ 내용)")
+                emitter.send("   - 리뷰: ${summary.reviews}개")
+                emitter.send("   - 읽기 로그: ${summary.readLogs}개")
 
-            // 3. 대시보드 캐시 생성
-            authorDashboardService.generateDailyDashboardCache()
+                // 4. 대시보드 캐시 생성
+                emitter.send("📊 [4/5] 대시보드 캐시 생성 중...")
+                authorDashboardService.generateDailyDashboardCache()
+                emitter.send("✅ [4/5] 대시보드 캐시 생성 완료!")
 
-            val duration = (System.currentTimeMillis() - startTime) / 1000
+                // 5. 완료
+                val duration = (System.currentTimeMillis() - startTime) / 1000
+                emitter.send("🎉 [5/5] 모든 작업 완료! (소요시간: ${duration}초)")
+                emitter.send("")
+                emitter.send("📌 이제 대시보드에서 데이터를 확인할 수 있습니다!")
 
-            return ResponseEntity.ok(
-                MockDataResponse(
-                    success = true,
-                    message = "All data reset and regenerated successfully! Dashboard cache also created.",
-                    summary = summary,
-                    durationSeconds = duration
-                )
-            )
-        } catch (e: Exception) {
-            e.printStackTrace()
-            return ResponseEntity.internalServerError().body(
-                MockDataResponse(
-                    success = false,
-                    message = "Failed to reset and generate: ${e.message}",
-                    summary = null,
-                    durationSeconds = (System.currentTimeMillis() - startTime) / 1000
-                )
-            )
+                emitter.complete()
+            } catch (e: Exception) {
+                e.printStackTrace()
+                try {
+                    emitter.send("❌ 오류 발생: ${e.message}")
+                    emitter.completeWithError(e)
+                } catch (ex: Exception) {
+                    // ignore
+                }
+            }
         }
+
+        return emitter
     }
 
     // 기존 데이터에 추가로 생성 (기존 데이터 유지)
