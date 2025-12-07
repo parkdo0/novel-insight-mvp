@@ -399,6 +399,42 @@ class MockDataGeneratorService(
             println("  ! author_dashboard_cache 테이블 재생성 실패: ${e.message}")
         }
 
+        // ★★★ drop_off_point 테이블 재생성 ★★★
+        try {
+            entityManager.createNativeQuery("DROP TABLE IF EXISTS drop_off_point").executeUpdate()
+            entityManager.createNativeQuery("""
+                CREATE TABLE drop_off_point (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    episode_id BIGINT NOT NULL,
+                    novel_id BIGINT NOT NULL,
+                    drop0to10percent INT NOT NULL DEFAULT 0,
+                    drop10to20percent INT NOT NULL DEFAULT 0,
+                    drop20to30percent INT NOT NULL DEFAULT 0,
+                    drop30to40percent INT NOT NULL DEFAULT 0,
+                    drop40to50percent INT NOT NULL DEFAULT 0,
+                    drop50to60percent INT NOT NULL DEFAULT 0,
+                    drop60to70percent INT NOT NULL DEFAULT 0,
+                    drop70to80percent INT NOT NULL DEFAULT 0,
+                    drop80to90percent INT NOT NULL DEFAULT 0,
+                    drop90to100percent INT NOT NULL DEFAULT 0,
+                    total_readers INT NOT NULL DEFAULT 0,
+                    completed_readers INT NOT NULL DEFAULT 0,
+                    completion_rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+                    avg_scroll_depth DECIMAL(5,2) NOT NULL DEFAULT 0,
+                    aggregated_date DATE NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_episode_date (episode_id, aggregated_date),
+                    INDEX idx_novel_date (novel_id, aggregated_date),
+                    INDEX idx_completion_rate (completion_rate),
+                    UNIQUE KEY uk_episode_date (episode_id, aggregated_date)
+                )
+            """).executeUpdate()
+            println("  ✓ drop_off_point 테이블 재생성")
+        } catch (e: Exception) {
+            println("  ! drop_off_point 테이블 재생성 실패: ${e.message}")
+        }
+
         // FK 체크 다시 활성화
         entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate()
 
