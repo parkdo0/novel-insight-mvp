@@ -537,6 +537,63 @@ class AuthorDashboardController(
             )
         )
     }
+
+    // ==========================================
+    // 관리자 대시보드 API (전체 트렌드, 인기 제목, 핫 키워드)
+    // ==========================================
+
+    //
+    // 관리자 대시보드 조회 (전체 통계)
+    //
+    // - 전체 조회수, 전체 독자 수, 전체 완독률
+    // - 인기 소설 TOP 10
+    // - 인기 장르
+    // - 요즘 핫한 키워드 (리뷰에서 추출)
+    //
+    // 요청: GET /api/dashboard/admin
+    //
+    @GetMapping("/admin")
+    fun getAdminDashboard(): ResponseEntity<AdminDashboardDto> {
+        val adminStats = authorDashboardService.getAdminDashboard()
+        return ResponseEntity.ok(adminStats)
+    }
+
+    //
+    // 인기 소설 TOP N 조회 (관리자용)
+    //
+    // 요청: GET /api/dashboard/admin/popular-novels?limit=10
+    //
+    @GetMapping("/admin/popular-novels")
+    fun getPopularNovels(
+        @RequestParam(required = false, defaultValue = "10") limit: Int
+    ): ResponseEntity<List<PopularNovelDto>> {
+        val novels = authorDashboardService.getPopularNovels(limit)
+        return ResponseEntity.ok(novels)
+    }
+
+    //
+    // 장르별 통계 (관리자용)
+    //
+    // 요청: GET /api/dashboard/admin/genre-stats
+    //
+    @GetMapping("/admin/genre-stats")
+    fun getGenreStats(): ResponseEntity<List<GenreStatDto>> {
+        val stats = authorDashboardService.getGenreStats()
+        return ResponseEntity.ok(stats)
+    }
+
+    //
+    // 핫 키워드 (리뷰에서 추출, 관리자용)
+    //
+    // 요청: GET /api/dashboard/admin/hot-keywords?limit=20
+    //
+    @GetMapping("/admin/hot-keywords")
+    fun getHotKeywords(
+        @RequestParam(required = false, defaultValue = "20") limit: Int
+    ): ResponseEntity<List<KeywordDto>> {
+        val keywords = authorDashboardService.getHotKeywords(limit)
+        return ResponseEntity.ok(keywords)
+    }
 }
 
 //
@@ -623,3 +680,43 @@ fun com.sparta.novel_insight.domain.DropOffPoint.toDto(): EpisodeStatsDto {
         avgScrollDepth = this.avgScrollDepth
     )
 }
+
+// ==========================================
+// 관리자 대시보드 DTO
+// ==========================================
+
+// 관리자 대시보드 전체 통계
+data class AdminDashboardDto(
+    val totalViews: Long,           // 전체 조회수
+    val totalReaders: Long,         // 전체 독자 수
+    val totalNovels: Long,          // 전체 소설 수
+    val totalEpisodes: Long,        // 전체 에피소드 수
+    val avgCompletionRate: BigDecimal,  // 평균 완독률
+    val popularNovels: List<PopularNovelDto>,  // 인기 소설 TOP 10
+    val genreStats: List<GenreStatDto>,        // 장르별 통계
+    val hotKeywords: List<KeywordDto>          // 핫 키워드
+)
+
+// 인기 소설 DTO
+data class PopularNovelDto(
+    val novelId: Long,
+    val title: String,
+    val author: String,
+    val genre: String,
+    val viewCount: Long,
+    val completionRate: BigDecimal
+)
+
+// 장르별 통계 DTO
+data class GenreStatDto(
+    val genre: String,
+    val novelCount: Int,
+    val totalViews: Long,
+    val avgCompletionRate: BigDecimal
+)
+
+// 핫 키워드 DTO
+data class KeywordDto(
+    val keyword: String,
+    val count: Int
+)

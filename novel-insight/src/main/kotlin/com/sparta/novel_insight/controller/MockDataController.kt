@@ -8,6 +8,7 @@ import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.*
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter
+import java.nio.charset.StandardCharsets
 import java.util.concurrent.Executors
 
 // # MockDataController
@@ -66,49 +67,53 @@ class MockDataController(
     // 실시간으로 진행 상황을 볼 수 있습니다!
     //
     @GetMapping("/reset-and-generate", produces = ["text/event-stream;charset=UTF-8"])
-    fun resetAndGenerateAll(): SseEmitter {
+    fun resetAndGenerateAll(response: jakarta.servlet.http.HttpServletResponse): SseEmitter {
+        // UTF-8 인코딩 설정
+        response.characterEncoding = "UTF-8"
+        response.contentType = "text/event-stream;charset=UTF-8"
+
         val emitter = SseEmitter(600000L) // 10분 타임아웃
 
         executor.execute {
             val startTime = System.currentTimeMillis()
             try {
                 // 1. 모든 데이터 삭제
-                sendMessage(emitter, "[1/5] 기존 데이터 삭제 중...")
+                sendProgress(emitter, "[1/5] 기존 데이터 삭제 중...")
                 mockDataGeneratorService.clearAllData()
-                sendMessage(emitter, "[1/5] 기존 데이터 삭제 완료!")
+                sendProgress(emitter, "[1/5] 기존 데이터 삭제 완료!")
 
                 // 2. 스키마 수정
-                sendMessage(emitter, "[2/5] 스키마 수정 중 (episode.content -> LONGTEXT)...")
+                sendProgress(emitter, "[2/5] 스키마 수정 중 (episode.content -> LONGTEXT)...")
                 mockDataGeneratorService.fixSchema()
-                sendMessage(emitter, "[2/5] 스키마 수정 완료!")
+                sendProgress(emitter, "[2/5] 스키마 수정 완료!")
 
                 // 3. Mock 데이터 생성
-                sendMessage(emitter, "[3/5] Mock 데이터 생성 시작...")
-                sendMessage(emitter, "    회원 생성 중 (작가 50명, 독자 1000명)...")
+                sendProgress(emitter, "[3/5] Mock 데이터 생성 시작...")
+                sendProgress(emitter, "    회원 생성 중 (작가 50명, 독자 1000명)...")
                 val summary = mockDataGeneratorService.generateAllMockData(false)
-                sendMessage(emitter, "[3/5] Mock 데이터 생성 완료!")
-                sendMessage(emitter, "    - 회원: ${summary.members}명")
-                sendMessage(emitter, "    - 소설: ${summary.novels}편")
-                sendMessage(emitter, "    - 에피소드: ${summary.episodes}개 (3000자+ 내용)")
-                sendMessage(emitter, "    - 리뷰: ${summary.reviews}개")
-                sendMessage(emitter, "    - 읽기 로그: ${summary.readLogs}개")
+                sendProgress(emitter, "[3/5] Mock 데이터 생성 완료!")
+                sendProgress(emitter, "    - 회원: ${summary.members}명")
+                sendProgress(emitter, "    - 소설: ${summary.novels}편")
+                sendProgress(emitter, "    - 에피소드: ${summary.episodes}개 (3000자+ 내용)")
+                sendProgress(emitter, "    - 리뷰: ${summary.reviews}개")
+                sendProgress(emitter, "    - 읽기 로그: ${summary.readLogs}개")
 
-                // 4. 대시보드 캐시 생성
-                sendMessage(emitter, "[4/5] 대시보드 캐시 생성 중...")
-                authorDashboardService.generateDailyDashboardCache()
-                sendMessage(emitter, "[4/5] 대시보드 캐시 생성 완료!")
+                // 4. 대시보드 캐시 생성 (오늘 날짜로!)
+                sendProgress(emitter, "[4/5] 대시보드 캐시 생성 중...")
+                authorDashboardService.generateTodayDashboardCache()
+                sendProgress(emitter, "[4/5] 대시보드 캐시 생성 완료!")
 
                 // 5. 완료
                 val duration = (System.currentTimeMillis() - startTime) / 1000
-                sendMessage(emitter, "[5/5] 모든 작업 완료! (소요시간: ${duration}초)")
-                sendMessage(emitter, "")
-                sendMessage(emitter, "이제 대시보드에서 데이터를 확인할 수 있습니다!")
+                sendProgress(emitter, "[5/5] 모든 작업 완료! (소요시간: ${duration}초)")
+                sendProgress(emitter, "")
+                sendProgress(emitter, "이제 대시보드에서 데이터를 확인할 수 있습니다!")
 
                 emitter.complete()
             } catch (e: Exception) {
                 e.printStackTrace()
                 try {
-                    sendMessage(emitter, "오류 발생: ${e.message}")
+                    sendProgress(emitter, "오류 발생: ${e.message}")
                     emitter.completeWithError(e)
                 } catch (ex: Exception) {
                     // ignore
@@ -119,8 +124,14 @@ class MockDataController(
         return emitter
     }
 
-    private fun sendMessage(emitter: SseEmitter, message: String) {
-        emitter.send(SseEmitter.event().data(message, MediaType.valueOf("text/plain;charset=UTF-8")))
+    private fun sendProgress(emitter: SseEmitter, message: String) {
+        Thread.sleep(50) // 약간의 딜레이로 브라우저 버퍼링 방지
+        try {
+            val utf8Message = String(message.toByteArray(StandardCharsets.UTF_8), StandardCharsets.UTF_8)
+            emitter.send(SseEmitter.event().data(utf8Message).name("progress"))
+        } catch (e: Exception) {
+            // 클라이언트 연결이 끊어진 경우 무시
+        }
     }
 
     // 기존 데이터에 추가로 생성 (기존 데이터 유지)

@@ -261,8 +261,72 @@ class AuthorDashboardService(
     @Transactional
     fun generateDailyDashboardCache() {
         val targetDate = LocalDate.now().minusDays(1)
+        generateDashboardCacheForDate(targetDate)
+    }
 
-        // 1. 어제 하루의 모든 로그 조회
+    // Mock 데이터 생성 후 즉시 대시보드에서 확인할 수 있도록 오늘 날짜로 캐시 생성
+    // 날짜 필터링 없이 모든 로그를 사용 (Mock 데이터용)
+    @Transactional
+    fun generateTodayDashboardCache() {
+        val targetDate = LocalDate.now()
+
+        // Mock 데이터: 모든 로그 사용 (날짜 필터링 없음)
+        val allLogs = episodeReadLogRepository.findAll().toList()
+
+        if (allLogs.isEmpty()) {
+            println("⚠️ 대시보드 캐시 생성 실패: 읽기 로그가 없습니다.")
+            return
+        }
+
+        println("📊 대시보드 캐시 생성 중... (로그 ${allLogs.size}개)")
+
+        // 2. 작가별로 그룹핑
+        val groupedByNovel = allLogs.groupBy { it.novelId }
+        val caches = mutableListOf<AuthorDashboardCache>()
+
+        groupedByNovel.forEach { (novelId, logs) ->
+            val novel = novelRepository.findById(novelId).orElse(null) ?: return@forEach
+            val authorId = novel.authorId
+
+            val cache = generateNovelDashboardCache(
+                authorId = authorId,
+                novelId = novelId,
+                logs = logs,
+                targetDate = targetDate,
+                periodType = PeriodType.DAILY
+            )
+            caches.add(cache)
+        }
+
+        // 작가 전체 통계 생성
+        val novelIdToAuthorId = allLogs.mapNotNull { log ->
+            novelRepository.findById(log.novelId).orElse(null)?.let { novel ->
+                log.novelId to novel.authorId
+            }
+        }.toMap()
+
+        val groupedByAuthor = allLogs.groupBy { log ->
+            novelIdToAuthorId[log.novelId]
+        }.filterKeys { it != null }
+
+        groupedByAuthor.forEach { (authorId, logs) ->
+            val cache = generateAuthorDashboardCache(
+                authorId = authorId!!,
+                logs = logs,
+                targetDate = targetDate,
+                periodType = PeriodType.DAILY
+            )
+            caches.add(cache)
+        }
+
+        authorDashboardCacheRepository.saveAll(caches)
+        println("✅ 대시보드 캐시 ${caches.size}개 생성 완료!")
+    }
+
+    // 특정 날짜의 대시보드 캐시 생성
+    private fun generateDashboardCacheForDate(targetDate: LocalDate) {
+
+        // 1. 해당 날짜의 모든 로그 조회
         val startDateTime = targetDate.atStartOfDay()
         val endDateTime = targetDate.plusDays(1).atStartOfDay()
 
@@ -504,6 +568,132 @@ class AuthorDashboardService(
             periodType = periodType,
             limit = limit
         )
+    }
+
+    // ==========================================
+    // 관리자 대시보드 (전체 통계)
+    // ==========================================
+
+    //
+    // 관리자 대시보드 조회
+    //
+    // 전체 플랫폼 통계를 반환합니다.
+    // - 전체 조회수, 전체 독자 수
+    // - 인기 소설 TOP 10
+    // - 장르별 통계
+    // - 핫 키워드
+    fun getAdminDashboard(): com.sparta.novel_insight.controller.AdminDashboardDto {
+        val totalViews = episodeReadLogRepository.count()
+        val totalReaders = episodeReadLogRepository.findAll()
+            .distinctBy { it.sessionId }.size.toLong()
+        val totalNovels = novelRepository.count()
+        val totalEpisodes = novelRepository.findAll().sumOf {
+            episodeReadLogRepository.findByNovelId(it.id!!).distinctBy { log -> log.episodeId }.size
+        }.toLong()
+
+        val allLogs = episodeReadLogRepository.findAll()
+        val avgCompletionRate = if (allLogs.isNotEmpty()) {
+            BigDecimal(allLogs.count { it.isCompleted }.toDouble() / allLogs.size * 100)
+                .setScale(2, RoundingMode.HALF_UP)
+        } else {
+            BigDecimal.ZERO
+        }
+
+        return com.sparta.novel_insight.controller.AdminDashboardDto(
+            totalViews = totalViews,
+            totalReaders = totalReaders,
+            totalNovels = totalNovels,
+            totalEpisodes = totalEpisodes,
+            avgCompletionRate = avgCompletionRate,
+            popularNovels = getPopularNovels(10),
+            genreStats = getGenreStats(),
+            hotKeywords = getHotKeywords(20)
+        )
+    }
+
+    //
+    // 인기 소설 TOP N 조회
+    //
+    fun getPopularNovels(limit: Int): List<com.sparta.novel_insight.controller.PopularNovelDto> {
+        val novels = novelRepository.findAll()
+            .map { novel ->
+                val logs = episodeReadLogRepository.findByNovelId(novel.id!!)
+                val completionRate = if (logs.isNotEmpty()) {
+                    BigDecimal(logs.count { it.isCompleted }.toDouble() / logs.size * 100)
+                        .setScale(2, RoundingMode.HALF_UP)
+                } else {
+                    BigDecimal.ZERO
+                }
+                com.sparta.novel_insight.controller.PopularNovelDto(
+                    novelId = novel.id!!,
+                    title = novel.title,
+                    author = novel.author,
+                    genre = novel.genre ?: "기타",
+                    viewCount = novel.viewCount ?: 0L,
+                    completionRate = completionRate
+                )
+            }
+            .sortedByDescending { it.viewCount }
+            .take(limit)
+
+        return novels
+    }
+
+    //
+    // 장르별 통계 조회
+    //
+    fun getGenreStats(): List<com.sparta.novel_insight.controller.GenreStatDto> {
+        val novels = novelRepository.findAll()
+        val grouped = novels.groupBy { it.genre ?: "기타" }
+
+        return grouped.map { (genre, novelList) ->
+            val totalViews = novelList.sumOf { it.viewCount ?: 0L }
+            val allLogs = novelList.flatMap { novel ->
+                episodeReadLogRepository.findByNovelId(novel.id!!)
+            }
+            val avgCompletionRate = if (allLogs.isNotEmpty()) {
+                BigDecimal(allLogs.count { it.isCompleted }.toDouble() / allLogs.size * 100)
+                    .setScale(2, RoundingMode.HALF_UP)
+            } else {
+                BigDecimal.ZERO
+            }
+
+            com.sparta.novel_insight.controller.GenreStatDto(
+                genre = genre,
+                novelCount = novelList.size,
+                totalViews = totalViews,
+                avgCompletionRate = avgCompletionRate
+            )
+        }.sortedByDescending { it.totalViews }
+    }
+
+    //
+    // 핫 키워드 추출 (리뷰에서)
+    //
+    fun getHotKeywords(limit: Int): List<com.sparta.novel_insight.controller.KeywordDto> {
+        // 긍정적인 키워드 목록
+        val positiveKeywords = listOf(
+            "재밌", "재미있", "좋아", "최고", "대박", "감동", "명작", "추천", "강추", "꿀잼",
+            "몰입", "흥미", "기대", "설레", "두근", "행복", "사랑", "멋있", "훌륭", "완벽",
+            "신선", "독특", "탄탄", "빠른", "시원", "통쾌", "웃긴", "눈물", "감사", "응원"
+        )
+
+        val reviews = reviewAnalysisRepository.findAll()
+        val keywordCounts = mutableMapOf<String, Int>()
+
+        reviews.forEach { review ->
+            val content = review.content ?: ""
+            positiveKeywords.forEach { keyword ->
+                if (content.contains(keyword)) {
+                    keywordCounts[keyword] = keywordCounts.getOrDefault(keyword, 0) + 1
+                }
+            }
+        }
+
+        return keywordCounts.entries
+            .sortedByDescending { it.value }
+            .take(limit)
+            .map { com.sparta.novel_insight.controller.KeywordDto(it.key, it.value) }
     }
 
     //

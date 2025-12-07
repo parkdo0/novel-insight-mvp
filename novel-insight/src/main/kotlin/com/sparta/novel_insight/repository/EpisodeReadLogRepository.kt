@@ -53,6 +53,12 @@ interface EpisodeReadLogRepository : JpaRepository<EpisodeReadLog, Long> {
     ): List<EpisodeReadLog>
 
     //
+    // 소설별 전체 로그 조회
+    //
+    // 관리자 대시보드용
+    fun findByNovelId(novelId: Long): List<EpisodeReadLog>
+
+    //
     // 에피소드별 고유 독자 수 조회
     //
     // sessionId 기준 중복 제거
