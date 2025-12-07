@@ -321,10 +321,10 @@ class MockDataGeneratorService(
         entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 0").executeUpdate()
 
         // 모든 테이블 TRUNCATE (테이블 구조는 유지)
+        // author_dashboard_cache는 별도로 DROP/CREATE 처리
         val tables = listOf(
             "section_replay_log",
             "drop_off_point",
-            "author_dashboard_cache",
             "episode_read_log",
             "review_analysis",
             "comment_like",
@@ -359,26 +359,37 @@ class MockDataGeneratorService(
             println("  ! episode.content 변경 실패: ${e.message}")
         }
 
-        // ★★★ author_dashboard_cache 테이블 스키마 수정 ★★★
+        // ★★★ author_dashboard_cache 테이블 재생성 ★★★
         try {
-            // 기존 aggregated_date 컬럼이 있으면 삭제
-            entityManager.createNativeQuery(
-                "ALTER TABLE author_dashboard_cache DROP COLUMN IF EXISTS aggregated_date"
-            ).executeUpdate()
-            println("  ✓ author_dashboard_cache.aggregated_date 컬럼 삭제")
+            entityManager.createNativeQuery("DROP TABLE IF EXISTS author_dashboard_cache").executeUpdate()
+            entityManager.createNativeQuery("""
+                CREATE TABLE author_dashboard_cache (
+                    id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                    author_id BIGINT NOT NULL,
+                    novel_id BIGINT NULL,
+                    total_views INT NOT NULL DEFAULT 0,
+                    unique_readers INT NOT NULL DEFAULT 0,
+                    avg_reading_time_seconds INT NOT NULL DEFAULT 0,
+                    completion_rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+                    total_reviews INT NOT NULL DEFAULT 0,
+                    positive_rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+                    negative_rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+                    joy_rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+                    anger_rate DECIMAL(5,2) NOT NULL DEFAULT 0,
+                    top_episodes_json JSON NULL,
+                    drop_off_episodes_json JSON NULL,
+                    cache_date DATE NOT NULL,
+                    period_type VARCHAR(20) NOT NULL,
+                    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                    INDEX idx_author_date (author_id, cache_date),
+                    INDEX idx_author_novel_date (author_id, novel_id, cache_date),
+                    UNIQUE KEY uk_author_novel_date_period (author_id, novel_id, cache_date, period_type)
+                )
+            """).executeUpdate()
+            println("  ✓ author_dashboard_cache 테이블 재생성")
         } catch (e: Exception) {
-            println("  ! aggregated_date 컬럼 삭제 실패: ${e.message}")
-        }
-
-        // cache_date 컬럼이 없으면 추가
-        try {
-            entityManager.createNativeQuery(
-                """ALTER TABLE author_dashboard_cache
-                   ADD COLUMN IF NOT EXISTS cache_date DATE NOT NULL DEFAULT (CURRENT_DATE)"""
-            ).executeUpdate()
-            println("  ✓ author_dashboard_cache.cache_date 컬럼 확인")
-        } catch (e: Exception) {
-            println("  ! cache_date 컬럼 추가 실패: ${e.message}")
+            println("  ! author_dashboard_cache 테이블 재생성 실패: ${e.message}")
         }
 
         // FK 체크 다시 활성화
