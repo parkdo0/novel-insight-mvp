@@ -249,7 +249,7 @@ class AuthorDashboardCache(
 
     //
     // 집계 날짜
-    @Column(nullable = false)
+    @Column(name = "cache_date", nullable = false)
     val aggregatedDate: LocalDate,
 
     //
