@@ -311,19 +311,16 @@ class MockDataGeneratorService(
         )
     }
 
-    // 기존 데이터 전체 삭제 (TRUNCATE 사용 - 매우 빠름)
-    //
-    // DELETE 대신 TRUNCATE 사용
-    // - DELETE: 행 하나씩 삭제 → 느림
-    // - TRUNCATE: 테이블 전체 삭제 → 즉시 완료
+    // 기존 데이터 전체 삭제 + 테이블 재생성
     @Transactional
     fun clearAllData() {
-        println("🗑️ Clearing all data with TRUNCATE...")
+        println("🗑️ Clearing all data and recreating tables...")
         val startTime = System.currentTimeMillis()
 
-        // FK 체크 비활성화 후 TRUNCATE 실행
+        // FK 체크 비활성화
         entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 0").executeUpdate()
 
+        // ★★★ 모든 테이블 DROP ★★★
         val tables = listOf(
             "section_replay_log",
             "drop_off_point",
@@ -345,26 +342,313 @@ class MockDataGeneratorService(
 
         tables.forEach { table ->
             try {
-                entityManager.createNativeQuery("TRUNCATE TABLE $table").executeUpdate()
-                println("  ✓ $table truncated")
+                entityManager.createNativeQuery("DROP TABLE IF EXISTS $table").executeUpdate()
+                println("  ✓ DROP $table")
             } catch (e: Exception) {
-                println("  ✗ $table failed: ${e.message}")
+                println("  ! DROP $table 실패: ${e.message}")
             }
         }
 
         // FK 체크 다시 활성화
         entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate()
 
-        // episode.content 컬럼을 LONGTEXT로 변경 (3000자+ 저장을 위해)
-        try {
-            entityManager.createNativeQuery("ALTER TABLE episode MODIFY COLUMN content LONGTEXT NOT NULL").executeUpdate()
-            println("  ✓ episode.content -> LONGTEXT")
-        } catch (e: Exception) {
-            println("  ✗ ALTER episode.content failed: ${e.message}")
-        }
+        entityManager.flush()
+        entityManager.clear()
+
+        // ★★★ 테이블 재생성 (Hibernate가 하지 않으므로 직접 생성) ★★★
+        createTables()
 
         val duration = System.currentTimeMillis() - startTime
-        println("✅ All data cleared in ${duration}ms!")
+        println("✅ Done in ${duration}ms!")
+    }
+
+    // 테이블 직접 생성
+    private fun createTables() {
+        println("📦 Creating tables...")
+
+        // member 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS member (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                email VARCHAR(255) NOT NULL UNIQUE,
+                password VARCHAR(255) NOT NULL,
+                nickname VARCHAR(255) NOT NULL,
+                role VARCHAR(50) NOT NULL,
+                created_at DATETIME NOT NULL
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ member")
+
+        // novel 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS novel (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                author VARCHAR(255) NOT NULL,
+                author_id BIGINT NOT NULL,
+                description TEXT,
+                genre VARCHAR(100),
+                status VARCHAR(50),
+                view_count BIGINT DEFAULT 0,
+                created_at DATETIME NOT NULL,
+                FOREIGN KEY (author_id) REFERENCES member(id)
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ novel")
+
+        // episode 테이블 (★ LONGTEXT 사용!)
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS episode (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                content LONGTEXT NOT NULL,
+                episode_number INT NOT NULL,
+                price INT DEFAULT 0,
+                is_free BOOLEAN DEFAULT TRUE,
+                view_count BIGINT DEFAULT 0,
+                purchase_count BIGINT DEFAULT 0,
+                published_at DATETIME NOT NULL,
+                created_at DATETIME NOT NULL,
+                novel_id BIGINT NOT NULL,
+                FOREIGN KEY (novel_id) REFERENCES novel(id)
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ episode (content: LONGTEXT)")
+
+        // review 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS review (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                content TEXT NOT NULL,
+                user_id BIGINT NOT NULL,
+                novel_id BIGINT NOT NULL,
+                rating DECIMAL(3,2),
+                created_at DATETIME NOT NULL,
+                FOREIGN KEY (novel_id) REFERENCES novel(id)
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ review")
+
+        // review_analysis 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS review_analysis (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                novel_id BIGINT NOT NULL,
+                author_id BIGINT NOT NULL,
+                content TEXT,
+                sentiment VARCHAR(50),
+                score DOUBLE,
+                positive_count INT DEFAULT 0,
+                negative_count INT DEFAULT 0,
+                analyzed_at DATETIME
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ review_analysis")
+
+        // episode_read_log 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS episode_read_log (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                user_id BIGINT,
+                episode_id BIGINT NOT NULL,
+                novel_id BIGINT NOT NULL,
+                session_id VARCHAR(255),
+                started_at DATETIME,
+                ended_at DATETIME,
+                reading_duration_seconds INT,
+                max_scroll_depth DECIMAL(5,2),
+                is_completed BOOLEAN DEFAULT FALSE,
+                device_type VARCHAR(50),
+                referrer VARCHAR(500),
+                dropped_at_percentage DECIMAL(5,2),
+                drop_reason VARCHAR(50)
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ episode_read_log")
+
+        // episode_comment 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS episode_comment (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                content TEXT NOT NULL,
+                writer_id BIGINT NOT NULL,
+                episode_id BIGINT NOT NULL,
+                like_count INT DEFAULT 0,
+                dislike_count INT DEFAULT 0,
+                created_at DATETIME NOT NULL,
+                FOREIGN KEY (episode_id) REFERENCES episode(id)
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ episode_comment")
+
+        // comment_like 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS comment_like (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                comment_id BIGINT NOT NULL,
+                member_id BIGINT NOT NULL,
+                like_type VARCHAR(50) NOT NULL,
+                FOREIGN KEY (comment_id) REFERENCES episode_comment(id)
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ comment_like")
+
+        // point 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS point (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                member_id BIGINT NOT NULL,
+                balance INT DEFAULT 0,
+                FOREIGN KEY (member_id) REFERENCES member(id)
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ point")
+
+        // point_history 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS point_history (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                point_id BIGINT NOT NULL,
+                amount INT NOT NULL,
+                type VARCHAR(50) NOT NULL,
+                description VARCHAR(500),
+                created_at DATETIME NOT NULL,
+                FOREIGN KEY (point_id) REFERENCES point(id)
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ point_history")
+
+        // purchase 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS purchase (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                member_id BIGINT NOT NULL,
+                episode_id BIGINT NOT NULL,
+                price INT NOT NULL,
+                purchased_at DATETIME NOT NULL,
+                FOREIGN KEY (member_id) REFERENCES member(id),
+                FOREIGN KEY (episode_id) REFERENCES episode(id)
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ purchase")
+
+        // notification 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS notification (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                member_id BIGINT NOT NULL,
+                title VARCHAR(255) NOT NULL,
+                message TEXT,
+                is_read BOOLEAN DEFAULT FALSE,
+                created_at DATETIME NOT NULL,
+                FOREIGN KEY (member_id) REFERENCES member(id)
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ notification")
+
+        // refresh_token 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS refresh_token (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                member_id BIGINT NOT NULL,
+                token VARCHAR(500) NOT NULL,
+                expires_at DATETIME NOT NULL,
+                FOREIGN KEY (member_id) REFERENCES member(id)
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ refresh_token")
+
+        // author_dashboard_cache 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS author_dashboard_cache (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                author_id BIGINT NOT NULL,
+                cache_date DATE NOT NULL,
+                total_views BIGINT DEFAULT 0,
+                total_revenue BIGINT DEFAULT 0,
+                avg_read_time INT DEFAULT 0,
+                completion_rate DECIMAL(5,2) DEFAULT 0,
+                new_readers INT DEFAULT 0,
+                returning_readers INT DEFAULT 0,
+                cache_data JSON,
+                created_at DATETIME NOT NULL
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ author_dashboard_cache")
+
+        // section_replay_log 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS section_replay_log (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                user_id BIGINT,
+                episode_id BIGINT NOT NULL,
+                section_percentage DECIMAL(5,2) NOT NULL,
+                section_end_percentage DECIMAL(5,2) NOT NULL,
+                session_id VARCHAR(255),
+                viewer_mode VARCHAR(50),
+                device_type VARCHAR(50),
+                duration_seconds INT,
+                created_at DATETIME NOT NULL
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ section_replay_log")
+
+        // drop_off_point 테이블
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS drop_off_point (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                episode_id BIGINT NOT NULL,
+                percentage DECIMAL(5,2) NOT NULL,
+                drop_count INT DEFAULT 0,
+                analyzed_at DATETIME
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ drop_off_point")
+
+        entityManager.flush()
+        entityManager.clear()
+        println("📦 All tables created!")
+    }
+
+    // 스키마만 수정 (별도 호출용)
+    @Transactional
+    fun fixSchema() {
+        println("🔧 Fixing schema - DROP and recreate episode table...")
+        entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 0").executeUpdate()
+
+        // episode 관련 테이블 DROP
+        try {
+            entityManager.createNativeQuery("DROP TABLE IF EXISTS episode_comment").executeUpdate()
+            entityManager.createNativeQuery("DROP TABLE IF EXISTS purchase").executeUpdate()
+            entityManager.createNativeQuery("DROP TABLE IF EXISTS episode_read_log").executeUpdate()
+            entityManager.createNativeQuery("DROP TABLE IF EXISTS episode").executeUpdate()
+            println("  ✓ Dropped episode and related tables")
+        } catch (e: Exception) {
+            println("  ! DROP 실패: ${e.message}")
+        }
+
+        // episode 테이블 재생성 (LONGTEXT)
+        entityManager.createNativeQuery("""
+            CREATE TABLE IF NOT EXISTS episode (
+                id BIGINT AUTO_INCREMENT PRIMARY KEY,
+                title VARCHAR(255) NOT NULL,
+                content LONGTEXT NOT NULL,
+                episode_number INT NOT NULL,
+                price INT DEFAULT 0,
+                is_free BOOLEAN DEFAULT TRUE,
+                view_count BIGINT DEFAULT 0,
+                purchase_count BIGINT DEFAULT 0,
+                published_at DATETIME NOT NULL,
+                created_at DATETIME NOT NULL,
+                novel_id BIGINT NOT NULL
+            )
+        """.trimIndent()).executeUpdate()
+        println("  ✓ Created episode table with LONGTEXT")
+
+        entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate()
+        entityManager.flush()
+        entityManager.clear()
+        println("✅ Schema fixed!")
     }
 
     // 회원 데이터 생성

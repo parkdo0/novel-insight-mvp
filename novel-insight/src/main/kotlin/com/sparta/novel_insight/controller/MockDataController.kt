@@ -65,10 +65,13 @@ class MockDataController(
         val startTime = System.currentTimeMillis()
 
         try {
-            // 1. 모든 데이터 삭제
+            // 1. 모든 데이터 삭제 + 스키마 수정
             mockDataGeneratorService.clearAllData()
 
-            // 2. 새 데이터 생성
+            // 2. 스키마 한번 더 확인 (LONGTEXT)
+            mockDataGeneratorService.fixSchema()
+
+            // 3. 새 데이터 생성
             val summary = mockDataGeneratorService.generateAllMockData(false)
 
             // 3. 대시보드 캐시 생성
@@ -266,14 +269,22 @@ class MockDataController(
         }
     }
 
+    // 스키마 수정 (episode.content → LONGTEXT)
+    // http://localhost:8080/api/mock/fix-schema
+    @GetMapping("/fix-schema")
+    fun fixSchema(): ResponseEntity<Map<String, Any>> {
+        try {
+            mockDataGeneratorService.fixSchema()
+            return ResponseEntity.ok(mapOf("success" to true, "message" to "Schema fixed!"))
+        } catch (e: Exception) {
+            return ResponseEntity.internalServerError().body(
+                mapOf("success" to false, "message" to "Failed: ${e.message}")
+            )
+        }
+    }
+
     // Mock 데이터 생성 상태 확인
-    //
-    // 현재 DB에 있는 데이터 개수를 반환합니다.
-    //
-    // ```bash
-    // GET /api/mock/status
-    // ```
-    //
+    // http://localhost:8080/api/mock/status
     // @return 현재 데이터 개수
     @GetMapping("/status")
     fun getStatus(): ResponseEntity<Map<String, Any>> {
