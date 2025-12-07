@@ -39,8 +39,11 @@ onMounted(() => {
 const goViewer = async (episode: Episode) => {
   if (!props.novel) return
 
+  // novelId를 쿼리 파라미터로 전달 (이전화/다음화 네비게이션용)
+  const viewerUrl = `/viewer/${episode.id}?novelId=${props.novel.id}`
+
   if (episode.isFree || episode.price === 0 || episode.isPurchased || isAuthor.value) {
-    router.push(`/viewer/${episode.id}`)
+    router.push(viewerUrl)
     return
   }
 
@@ -60,12 +63,12 @@ const goViewer = async (episode: Episode) => {
       alert("구매 완료!")
       await authStore.fetchUserInfo()
       episode.isPurchased = true
-      router.push(`/viewer/${episode.id}`)
+      router.push(viewerUrl)
     } catch (e: any) {
       const msg = e.response?.data || ""
       if (e.response?.status === 500 || (typeof msg === 'string' && msg.includes("이미"))) {
         episode.isPurchased = true
-        router.push(`/viewer/${episode.id}`)
+        router.push(viewerUrl)
       } else {
         alert("구매 실패: " + msg)
       }

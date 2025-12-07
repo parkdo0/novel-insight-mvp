@@ -2,7 +2,7 @@ import api from './axiosConfig';
 
 // 포인트 충전
 export const chargePoint = async (amount: number) => {
-    const response = await api.post('/payments/charge', { amount });
+    const response = await api.post('/api/payments/charge', { amount });
     return response.data;
 };
 

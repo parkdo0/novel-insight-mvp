@@ -334,11 +334,15 @@ class PurchaseService(
          * INSERT INTO point_history (user_id, type, amount, description, created_at)
          * VALUES (?, 'USE', ?, ?, NOW())
          */
+        // 소설 정보 조회 (Lazy Loading)
+        val novelTitle = episode.novel.title
+        val episodeNumber = episode.episodeNumber
+
         val history = PointHistory(
             userId = userId,
             type = TransactionType.USE,
             amount = episode.price.toLong(),
-            description = "${episode.title} 구매"
+            description = "[${novelTitle}] ${episodeNumber}화 - ${episode.title}"
         )
         pointHistoryRepository.save(history)
 

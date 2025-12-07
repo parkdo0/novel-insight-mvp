@@ -248,14 +248,28 @@ const loadViewer = async () => {
 
   try {
     const epId = Number(route.params.episodeId)
-    const novelId = Number(route.query.novelId)
+    let novelId = Number(route.query.novelId)
 
-    // 에피소드 데이터 로드
-    const [episodeData, navInfo, commentsData] = await Promise.all([
+    // 에피소드 데이터와 댓글 먼저 로드
+    const [episodeData, commentsData] = await Promise.all([
       readEpisode(epId),
-      novelId ? getEpisodeNav(novelId, epId) : Promise.resolve(null),
       getComments(epId)
     ])
+
+    // novelId가 없으면 에피소드 데이터에서 가져옴
+    if (!novelId || isNaN(novelId)) {
+      novelId = episodeData.novelId
+    }
+
+    // 이전화/다음화 정보 로드 (novelId가 있을 때만)
+    let navInfo = null
+    if (novelId) {
+      try {
+        navInfo = await getEpisodeNav(novelId, epId)
+      } catch (navError) {
+        console.error('네비게이션 정보 로드 실패:', navError)
+      }
+    }
 
     episode.value = {
       ...episodeData,
