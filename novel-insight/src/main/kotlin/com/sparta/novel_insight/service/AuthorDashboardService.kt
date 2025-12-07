@@ -266,10 +266,9 @@ class AuthorDashboardService(
 
     // Mock 데이터 생성 후 즉시 대시보드에서 확인할 수 있도록 오늘 날짜로 캐시 생성
     // 날짜 필터링 없이 모든 로그를 사용 (Mock 데이터용)
+    // 30일 트렌드를 위해 최근 30일치 캐시도 생성
     @Transactional
     fun generateTodayDashboardCache() {
-        val targetDate = LocalDate.now()
-
         // Mock 데이터: 모든 로그 사용 (날짜 필터링 없음)
         val allLogs = episodeReadLogRepository.findAll().toList()
 
@@ -280,7 +279,24 @@ class AuthorDashboardService(
 
         println("📊 대시보드 캐시 생성 중... (로그 ${allLogs.size}개)")
 
-        // 2. 작가별로 그룹핑
+        // 30일치 캐시 생성 (트렌드용)
+        for (dayOffset in 0 until 30) {
+            val targetDate = LocalDate.now().minusDays(dayOffset.toLong())
+            generateCacheForDate(allLogs, targetDate, dayOffset)
+        }
+
+        println("✅ 대시보드 캐시 생성 완료! (30일치)")
+    }
+
+    // 특정 날짜의 캐시 생성 (내부 헬퍼)
+    private fun generateCacheForDate(
+        allLogs: List<com.sparta.novel_insight.domain.EpisodeReadLog>,
+        targetDate: LocalDate,
+        dayOffset: Int
+    ) {
+        // 날짜별로 약간의 변동을 주어 트렌드 데이터 생성
+        val variationFactor = 1.0 + (kotlin.random.Random.nextDouble() - 0.5) * 0.3  // ±15% 변동
+
         val groupedByNovel = allLogs.groupBy { it.novelId }
         val caches = mutableListOf<AuthorDashboardCache>()
 
@@ -320,7 +336,6 @@ class AuthorDashboardService(
         }
 
         authorDashboardCacheRepository.saveAll(caches)
-        println("✅ 대시보드 캐시 ${caches.size}개 생성 완료!")
     }
 
     // 특정 날짜의 대시보드 캐시 생성
