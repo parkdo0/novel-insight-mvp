@@ -51,41 +51,94 @@ class MockDataController(
     private val authorDashboardService: AuthorDashboardService
 ) {
 
-    // 전체 Mock 데이터 생성
+    // ★★★ [추천] 처음부터 완전히 새로 생성 (기존 데이터 삭제) ★★★
     //
-    // ## 생성 데이터
+    // ## 사용 예시
     //
-    // - 작가 50명 + 독자 1,000명
-    // - 소설 150편
-    // - 에피소드 ~5,000개
-    // - 리뷰 50,000개 (감성 분석 포함)
-    // - 읽기 로그 500,000개 (최근 30일)
-    //
-    // ## 소요 시간
-    //
-    // - **예상**: 5-10분 (500,000개 로그 생성)
-    // - **메모리**: ~1GB 사용
-    // - **디스크**: ~500MB 증가
-    //
-    // ## 응답 예시
-    //
-    // ```json
-    // {
-    //   "success": true,
-    //   "message": "Mock data generated successfully",
-    //   "summary": {
-    //     "members": 1050,
-    //     "novels": 150,
-    //     "episodes": 4823,
-    //     "reviews": 50000,
-    //     "readLogs": 500000
-    //   },
-    //   "duration": "8m 32s"
-    // }
+    // ```bash
+    // POST /api/mock/reset-and-generate
     // ```
     //
-    // @param clearExisting 기존 데이터 삭제 여부 (기본: false)
-    // @return 생성 결과 요약
+    // 모든 데이터를 삭제하고 새로 생성합니다.
+    // 에피소드 내용, 제목 등 모든 것이 새로 생성됩니다.
+    //
+    @PostMapping("/reset-and-generate")
+    fun resetAndGenerateAll(): ResponseEntity<MockDataResponse> {
+        val startTime = System.currentTimeMillis()
+
+        try {
+            // 1. 모든 데이터 삭제
+            mockDataGeneratorService.clearAllData()
+
+            // 2. 새 데이터 생성
+            val summary = mockDataGeneratorService.generateAllMockData(false)
+
+            // 3. 대시보드 캐시 생성
+            authorDashboardService.generateDailyDashboardCache()
+
+            val duration = (System.currentTimeMillis() - startTime) / 1000
+
+            return ResponseEntity.ok(
+                MockDataResponse(
+                    success = true,
+                    message = "All data reset and regenerated successfully! Dashboard cache also created.",
+                    summary = summary,
+                    durationSeconds = duration
+                )
+            )
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return ResponseEntity.internalServerError().body(
+                MockDataResponse(
+                    success = false,
+                    message = "Failed to reset and generate: ${e.message}",
+                    summary = null,
+                    durationSeconds = (System.currentTimeMillis() - startTime) / 1000
+                )
+            )
+        }
+    }
+
+    // 기존 데이터에 추가로 생성 (기존 데이터 유지)
+    //
+    // ## 사용 예시
+    //
+    // ```bash
+    // POST /api/mock/add-data
+    // ```
+    //
+    // 기존 데이터를 유지하면서 추가 데이터를 생성합니다.
+    // 주의: 이메일 중복 등의 이유로 실패할 수 있습니다.
+    //
+    @PostMapping("/add-data")
+    fun addMockData(): ResponseEntity<MockDataResponse> {
+        val startTime = System.currentTimeMillis()
+
+        try {
+            val summary = mockDataGeneratorService.generateAllMockData(false)
+            val duration = (System.currentTimeMillis() - startTime) / 1000
+
+            return ResponseEntity.ok(
+                MockDataResponse(
+                    success = true,
+                    message = "Mock data added successfully",
+                    summary = summary,
+                    durationSeconds = duration
+                )
+            )
+        } catch (e: Exception) {
+            return ResponseEntity.internalServerError().body(
+                MockDataResponse(
+                    success = false,
+                    message = "Failed to add mock data: ${e.message}",
+                    summary = null,
+                    durationSeconds = (System.currentTimeMillis() - startTime) / 1000
+                )
+            )
+        }
+    }
+
+    // [레거시] 전체 Mock 데이터 생성
     @PostMapping("/generate-all")
     fun generateAllMockData(
         @RequestParam(required = false, defaultValue = "false") clearExisting: Boolean
@@ -93,7 +146,10 @@ class MockDataController(
         val startTime = System.currentTimeMillis()
 
         try {
-            val summary = mockDataGeneratorService.generateAllMockData(clearExisting)
+            if (clearExisting) {
+                mockDataGeneratorService.clearAllData()
+            }
+            val summary = mockDataGeneratorService.generateAllMockData(false)
             val duration = (System.currentTimeMillis() - startTime) / 1000
 
             return ResponseEntity.ok(

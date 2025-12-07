@@ -68,7 +68,17 @@ class MockDataGeneratorService(
     internal val episodeRepository: EpisodeRepository,
     internal val reviewRepository: ReviewRepository,
     private val reviewAnalysisRepository: ReviewAnalysisRepository,
-    internal val episodeReadLogRepository: EpisodeReadLogRepository
+    internal val episodeReadLogRepository: EpisodeReadLogRepository,
+    private val purchaseRepository: PurchaseRepository,
+    private val pointRepository: PointRepository,
+    private val pointHistoryRepository: PointHistoryRepository,
+    private val episodeCommentRepository: EpisodeCommentRepository,
+    private val commentLikeRepository: CommentLikeRepository,
+    private val notificationRepository: NotificationRepository,
+    private val authorDashboardCacheRepository: AuthorDashboardCacheRepository,
+    private val sectionReplayLogRepository: SectionReplayLogRepository,
+    private val dropOffPointRepository: DropOffPointRepository,
+    private val refreshTokenRepository: RefreshTokenRepository
 ) {
 
     companion object {
@@ -256,19 +266,40 @@ class MockDataGeneratorService(
     // 4. Review + ReviewAnalysis 생성 (FK: userId, novelId)
     // 5. EpisodeReadLog 생성 (FK: userId, episodeId, novelId)
     //
-    // @param clearExisting 기존 데이터 삭제 여부
+    // @param clearExisting deprecated - use clearAllData() separately
     // @return 생성된 데이터 개수 요약
     @Transactional
     fun generateAllMockData(clearExisting: Boolean = false): MockDataSummary {
-        if (clearExisting) {
-            clearAllData()
-        }
+        println("🚀 Starting mock data generation...")
 
+        // 1. 회원 생성
+        println("👥 Generating members...")
         val members = generateMembers(authorCount = 50, readerCount = 1000)
-        val novels = generateNovels(count = 150, authors = members.filter { it.role == MemberRole.AUTHOR })
+        val authors = members.filter { it.role == MemberRole.AUTHOR }
+        val readers = members.filter { it.role == MemberRole.READER }
+        println("✅ Members: ${members.size} (Authors: ${authors.size}, Readers: ${readers.size})")
+
+        // 2. 소설 생성
+        println("📚 Generating novels...")
+        val novels = generateNovels(count = 150, authors = authors)
+        println("✅ Novels: ${novels.size}")
+
+        // 3. 에피소드 생성 (3000자 이상의 내용)
+        println("📖 Generating episodes with rich content...")
         val episodes = generateEpisodes(novels = novels)
-        val reviews = generateReviews(count = 50000, readers = members.filter { it.role == MemberRole.READER }, novels = novels)
-        val readLogs = generateReadLogs(count = 500000, readers = members.filter { it.role == MemberRole.READER }, episodes = episodes, days = 30)
+        println("✅ Episodes: ${episodes.size}")
+
+        // 4. 리뷰 생성
+        println("💬 Generating reviews...")
+        val reviews = generateReviews(count = 10000, readers = readers, novels = novels)
+        println("✅ Reviews: ${reviews.size}")
+
+        // 5. 읽기 로그 생성 (대시보드용) - 10만개로 줄임
+        println("📊 Generating read logs for dashboard...")
+        val readLogs = generateReadLogs(count = 100000, readers = readers, episodes = episodes, days = 30)
+        println("✅ Read logs: ${readLogs.size}")
+
+        println("🎉 Mock data generation completed!")
 
         return MockDataSummary(
             members = members.size,
@@ -283,14 +314,36 @@ class MockDataGeneratorService(
     //
     // WHY 순서가 중요?
     // - FK 제약조건 역순으로 삭제해야 함
+    // - 가장 하위 테이블부터 삭제
     @Transactional
     fun clearAllData() {
+        println("🗑️ Clearing all data...")
+
+        // 1. 분석/로그 데이터 (최하위)
+        sectionReplayLogRepository.deleteAll()
+        dropOffPointRepository.deleteAll()
+        authorDashboardCacheRepository.deleteAll()
         episodeReadLogRepository.deleteAll()
         reviewAnalysisRepository.deleteAll()
+
+        // 2. 사용자 활동 데이터
+        commentLikeRepository.deleteAll()
+        episodeCommentRepository.deleteAll()
+        notificationRepository.deleteAll()
+        purchaseRepository.deleteAll()
+        pointHistoryRepository.deleteAll()
+        pointRepository.deleteAll()
+        refreshTokenRepository.deleteAll()
+
+        // 3. 콘텐츠 데이터
         reviewRepository.deleteAll()
         episodeRepository.deleteAll()
         novelRepository.deleteAll()
+
+        // 4. 회원 데이터 (최상위)
         memberRepository.deleteAll()
+
+        println("✅ All data cleared!")
     }
 
     // 회원 데이터 생성
