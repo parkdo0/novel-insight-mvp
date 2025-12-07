@@ -1,5 +1,7 @@
 package com.sparta.novel_insight.service
 
+import com.sparta.novel_insight.domain.Member
+import com.sparta.novel_insight.repository.MemberRepository
 import com.sparta.novel_insight.repository.PointRepository
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Test
@@ -11,7 +13,8 @@ import java.util.concurrent.Executors
 @SpringBootTest
 class PointServiceTest @Autowired constructor(
     private val pointService: PointService,
-    private val pointRepository: PointRepository
+    private val pointRepository: PointRepository,
+    private val memberRepository: MemberRepository
 ) {
 
     @Test
@@ -19,8 +22,17 @@ class PointServiceTest @Autowired constructor(
         // 0. 청소 (중요!)
         pointRepository.deleteAll()
 
-        // 1. 지갑 생성
-        val memberId = 1L
+        // 1. 테스트용 멤버 생성
+        val member = memberRepository.findByEmail("test@point.com") ?: memberRepository.save(
+            Member(
+                email = "test@point.com",
+                password = "test1234",
+                nickname = "포인트테스트"
+            )
+        )
+        val memberId = member.id!!
+
+        // 2. 지갑 생성
         pointService.createWallet(memberId)
 
         // 2. 공격 준비 (스레드 32개로 조절 - DB 커넥션 풀 고려)
