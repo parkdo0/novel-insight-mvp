@@ -359,6 +359,28 @@ class MockDataGeneratorService(
             println("  ! episode.content 변경 실패: ${e.message}")
         }
 
+        // ★★★ author_dashboard_cache 테이블 스키마 수정 ★★★
+        try {
+            // 기존 aggregated_date 컬럼이 있으면 삭제
+            entityManager.createNativeQuery(
+                "ALTER TABLE author_dashboard_cache DROP COLUMN IF EXISTS aggregated_date"
+            ).executeUpdate()
+            println("  ✓ author_dashboard_cache.aggregated_date 컬럼 삭제")
+        } catch (e: Exception) {
+            println("  ! aggregated_date 컬럼 삭제 실패: ${e.message}")
+        }
+
+        // cache_date 컬럼이 없으면 추가
+        try {
+            entityManager.createNativeQuery(
+                """ALTER TABLE author_dashboard_cache
+                   ADD COLUMN IF NOT EXISTS cache_date DATE NOT NULL DEFAULT (CURRENT_DATE)"""
+            ).executeUpdate()
+            println("  ✓ author_dashboard_cache.cache_date 컬럼 확인")
+        } catch (e: Exception) {
+            println("  ! cache_date 컬럼 추가 실패: ${e.message}")
+        }
+
         // FK 체크 다시 활성화
         entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate()
 
