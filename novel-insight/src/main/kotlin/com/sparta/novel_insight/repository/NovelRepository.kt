@@ -12,4 +12,7 @@ interface NovelRepository : JpaRepository<Novel, Long>, NovelCustomRepository {
     // ▼▼▼ 이 부분이 빠져 있어서 에러가 난 겁니다! ▼▼▼
     @Query("SELECT n FROM Novel n LEFT JOIN FETCH n.reviews")
     fun findAllWithReviews(pageable: Pageable): Page<Novel>
+
+    // 작가별 소설 조회
+    fun findByAuthorId(authorId: Long): List<Novel>
 }

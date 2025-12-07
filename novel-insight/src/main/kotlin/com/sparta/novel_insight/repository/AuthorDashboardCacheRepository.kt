@@ -2,6 +2,7 @@ package com.sparta.novel_insight.repository
 
 import com.sparta.novel_insight.domain.AuthorDashboardCache
 import com.sparta.novel_insight.domain.PeriodType
+import org.springframework.data.domain.Pageable
 import org.springframework.data.jpa.repository.JpaRepository
 import org.springframework.data.jpa.repository.Query
 import org.springframework.data.repository.query.Param
@@ -87,12 +88,25 @@ interface AuthorDashboardCacheRepository : JpaRepository<AuthorDashboardCache, L
         AND c.novelId IS NULL
         AND c.periodType = :periodType
         ORDER BY c.aggregatedDate DESC
-        LIMIT :limit
         """
     )
     fun findRecentCachesByAuthorId(
         @Param("authorId") authorId: Long,
         @Param("periodType") periodType: PeriodType,
-        @Param("limit") limit: Int = 30
+        pageable: Pageable
     ): List<AuthorDashboardCache>
+
+    //
+    // 사용 가능한 작가 ID 목록 조회
+    //
+    // WHY 필요?
+    // - 대시보드에서 작가 선택 시 실제 존재하는 작가만 표시
+    @Query(
+        """
+        SELECT DISTINCT c.authorId FROM AuthorDashboardCache c
+        WHERE c.novelId IS NULL
+        ORDER BY c.authorId ASC
+        """
+    )
+    fun findDistinctAuthorIds(): List<Long>
 }

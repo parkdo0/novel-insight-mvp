@@ -539,6 +539,51 @@ class AuthorDashboardController(
     }
 
     // ==========================================
+    // 작가 목록 조회
+    // ==========================================
+
+    //
+    // 사용 가능한 작가 ID 목록 조회
+    //
+    // ## 요청 예시
+    //
+    // ```bash
+    // GET /api/dashboard/authors
+    // ```
+    //
+    // ## 응답 예시
+    //
+    // ```json
+    // [1, 2, 3, 4, 5]
+    // ```
+    //
+    // @return 작가 ID 리스트
+    @GetMapping("/authors")
+    fun getAvailableAuthors(): ResponseEntity<List<Long>> {
+        val authorIds = authorDashboardService.getAvailableAuthorIds()
+        return ResponseEntity.ok(authorIds)
+    }
+
+    //
+    // 작가의 소설 목록 조회
+    //
+    // ## 요청 예시
+    //
+    // ```bash
+    // GET /api/dashboard/author/1/novels-list
+    // ```
+    //
+    // @param authorId 작가 ID
+    // @return 소설 목록 (간단 정보)
+    @GetMapping("/author/{authorId}/novels-list")
+    fun getAuthorNovelsList(
+        @PathVariable authorId: Long
+    ): ResponseEntity<List<SimpleNovelDto>> {
+        val novels = authorDashboardService.getNovelsByAuthor(authorId)
+        return ResponseEntity.ok(novels)
+    }
+
+    // ==========================================
     // 관리자 대시보드 API (전체 트렌드, 인기 제목, 핫 키워드)
     // ==========================================
 
@@ -719,4 +764,10 @@ data class GenreStatDto(
 data class KeywordDto(
     val keyword: String,
     val count: Int
+)
+
+// 간단 소설 정보 DTO
+data class SimpleNovelDto(
+    val novelId: Long,
+    val title: String
 )

@@ -6,6 +6,7 @@ import com.sparta.novel_insight.domain.PeriodType
 import com.sparta.novel_insight.repository.AuthorDashboardCacheRepository
 import com.sparta.novel_insight.repository.EpisodeReadLogRepository
 import com.sparta.novel_insight.repository.ReviewAnalysisRepository
+import org.springframework.data.domain.PageRequest
 import org.springframework.scheduling.annotation.Scheduled
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -664,8 +665,23 @@ class AuthorDashboardService(
         return authorDashboardCacheRepository.findRecentCachesByAuthorId(
             authorId = authorId,
             periodType = periodType,
-            limit = limit
+            pageable = PageRequest.of(0, limit)
         )
+    }
+
+    // 사용 가능한 작가 ID 목록 조회
+    fun getAvailableAuthorIds(): List<Long> {
+        return authorDashboardCacheRepository.findDistinctAuthorIds()
+    }
+
+    // 작가의 소설 목록 조회
+    fun getNovelsByAuthor(authorId: Long): List<com.sparta.novel_insight.controller.SimpleNovelDto> {
+        return novelRepository.findByAuthorId(authorId).map {
+            com.sparta.novel_insight.controller.SimpleNovelDto(
+                novelId = it.id!!,
+                title = it.title
+            )
+        }
     }
 
     // 캐시 개수 조회 (진행상황 표시용)
