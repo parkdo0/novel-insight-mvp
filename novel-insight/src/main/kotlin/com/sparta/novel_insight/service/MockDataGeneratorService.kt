@@ -355,6 +355,14 @@ class MockDataGeneratorService(
         // FK 체크 다시 활성화
         entityManager.createNativeQuery("SET FOREIGN_KEY_CHECKS = 1").executeUpdate()
 
+        // episode.content 컬럼을 LONGTEXT로 변경 (3000자+ 저장을 위해)
+        try {
+            entityManager.createNativeQuery("ALTER TABLE episode MODIFY COLUMN content LONGTEXT NOT NULL").executeUpdate()
+            println("  ✓ episode.content -> LONGTEXT")
+        } catch (e: Exception) {
+            println("  ✗ ALTER episode.content failed: ${e.message}")
+        }
+
         val duration = System.currentTimeMillis() - startTime
         println("✅ All data cleared in ${duration}ms!")
     }

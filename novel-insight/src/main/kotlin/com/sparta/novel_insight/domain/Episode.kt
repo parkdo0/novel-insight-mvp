@@ -11,7 +11,7 @@ class Episode(
     var title: String,
 
     @Lob
-    @Column(nullable = false)
+    @Column(nullable = false, columnDefinition = "LONGTEXT")
     var content: String,
 
     @Column(nullable = false)
