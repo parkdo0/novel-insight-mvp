@@ -79,7 +79,8 @@ class MockDataGeneratorService(
     private val sectionReplayLogRepository: SectionReplayLogRepository,
     private val dropOffPointRepository: DropOffPointRepository,
     private val refreshTokenRepository: RefreshTokenRepository,
-    private val entityManager: jakarta.persistence.EntityManager
+    private val entityManager: jakarta.persistence.EntityManager,
+    private val passwordEncoder: org.springframework.security.crypto.password.PasswordEncoder
 ) {
 
     companion object {
@@ -300,6 +301,11 @@ class MockDataGeneratorService(
         val readLogs = generateReadLogs(count = 100000, readers = readers, episodes = episodes, days = 30)
         println("✅ Read logs: ${readLogs.size}")
 
+        // 6. DropOffPoint 생성 (이탈 지점 분석용)
+        println("📉 Generating drop-off points for analysis...")
+        val dropOffPoints = generateDropOffPoints(episodes = episodes, days = 30)
+        println("✅ Drop-off points: ${dropOffPoints.size}")
+
         println("🎉 Mock data generation completed!")
 
         return MockDataSummary(
@@ -307,7 +313,8 @@ class MockDataGeneratorService(
             novels = novels.size,
             episodes = episodes.size,
             reviews = reviews.size,
-            readLogs = readLogs.size
+            readLogs = readLogs.size,
+            dropOffPoints = dropOffPoints.size
         )
     }
 
@@ -429,12 +436,13 @@ class MockDataGeneratorService(
     @Transactional
     fun generateMembers(authorCount: Int = 50, readerCount: Int = 1000): List<Member> {
         val members = mutableListOf<Member>()
+        val encodedPassword = passwordEncoder.encode("password123!")
 
         // 작가 생성
         repeat(authorCount) { i ->
             val member = Member(
                 email = "author${i + 1}@novel.com",
-                password = "password123!",
+                password = encodedPassword,
                 nickname = generateKoreanName() + " 작가",
                 role = MemberRole.AUTHOR,
                 createdAt = LocalDateTime.now().minusDays(Random.nextLong(365))
@@ -446,7 +454,7 @@ class MockDataGeneratorService(
         repeat(readerCount) { i ->
             val member = Member(
                 email = "reader${i + 1}@novel.com",
-                password = "password123!",
+                password = encodedPassword,
                 nickname = generateKoreanName(),
                 role = MemberRole.READER,
                 createdAt = LocalDateTime.now().minusDays(Random.nextLong(365))
@@ -814,6 +822,87 @@ class MockDataGeneratorService(
             content
         }
     }
+
+    // DropOffPoint 데이터 생성 (이탈 지점 분석용)
+    //
+    // EpisodeReadLog를 기반으로 에피소드별 이탈 지점 통계를 집계합니다.
+    // @param episodes 에피소드 리스트
+    // @param days 집계 기간 (일)
+    @Transactional
+    fun generateDropOffPoints(episodes: List<Episode>, days: Int = 30): List<DropOffPoint> {
+        val dropOffPoints = mutableListOf<DropOffPoint>()
+
+        // 최근 N일간 날짜별로 생성
+        for (dayOffset in 0 until days) {
+            val targetDate = LocalDate.now().minusDays(dayOffset.toLong())
+
+            episodes.forEach { episode ->
+                val novelId = episode.novel.id!!
+                val episodeId = episode.id!!
+
+                // 랜덤 통계 생성
+                val totalReaders = Random.nextInt(50, 500)
+                val completedReaders = (totalReaders * Random.nextDouble(0.3, 0.9)).toInt()
+                val completionRate = BigDecimal(completedReaders.toDouble() / totalReaders * 100)
+                    .setScale(2, java.math.RoundingMode.HALF_UP)
+
+                // 이탈 구간별 카운트 (10% 구간)
+                val remainingDropped = totalReaders - completedReaders
+                val dropCounts = mutableListOf<Int>()
+                var remainingToDistribute = remainingDropped
+
+                // 0-10%, 10-20%, ... 90-100% 구간
+                repeat(10) { range ->
+                    val dropInRange = if (range < 9) {
+                        // 초반에 더 많은 이탈
+                        val weight = when (range) {
+                            0, 1 -> 0.25  // 0-20%에서 50% 이탈
+                            2, 3 -> 0.15  // 20-40%에서 30% 이탈
+                            else -> 0.05   // 나머지
+                        }
+                        (remainingDropped * weight).toInt().coerceAtMost(remainingToDistribute)
+                    } else {
+                        remainingToDistribute  // 마지막 구간에 나머지
+                    }
+                    dropCounts.add(dropInRange)
+                    remainingToDistribute -= dropInRange
+                }
+
+                val dropOffPoint = DropOffPoint(
+                    episodeId = episodeId,
+                    novelId = novelId,
+                    totalReaders = totalReaders,
+                    completedReaders = completedReaders,
+                    completionRate = completionRate,
+                    drop0to10 = dropCounts[0],
+                    drop10to20 = dropCounts[1],
+                    drop20to30 = dropCounts[2],
+                    drop30to40 = dropCounts[3],
+                    drop40to50 = dropCounts[4],
+                    drop50to60 = dropCounts[5],
+                    drop60to70 = dropCounts[6],
+                    drop70to80 = dropCounts[7],
+                    drop80to90 = dropCounts[8],
+                    drop90to100 = dropCounts[9],
+                    aggregatedDate = targetDate
+                )
+                dropOffPoints.add(dropOffPoint)
+            }
+
+            // 배치 저장
+            if (dropOffPoints.size >= 1000) {
+                dropOffPointRepository.saveAll(dropOffPoints)
+                dropOffPoints.clear()
+            }
+        }
+
+        // 남은 데이터 저장
+        if (dropOffPoints.isNotEmpty()) {
+            dropOffPointRepository.saveAll(dropOffPoints)
+        }
+
+        return dropOffPointRepository.findAll().toList()
+    }
 }
 
 // Mock 데이터 생성 요약
@@ -822,7 +911,8 @@ data class MockDataSummary(
     val novels: Int,
     val episodes: Int,
     val reviews: Int,
-    val readLogs: Int
+    val readLogs: Int,
+    val dropOffPoints: Int = 0
 )
 
 // MemberRole enum은 domain 패키지에 정의되어 있습니다
