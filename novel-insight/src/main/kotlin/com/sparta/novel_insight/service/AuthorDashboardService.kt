@@ -294,6 +294,9 @@ class AuthorDashboardService(
         targetDate: LocalDate,
         dayOffset: Int
     ) {
+        // 오늘(dayOffset=0)만 상세 데이터 생성, 나머지는 간단한 통계만
+        val includeDetails = (dayOffset == 0)
+
         // 날짜별로 약간의 변동을 주어 트렌드 데이터 생성
         val variationFactor = 1.0 + (kotlin.random.Random.nextDouble() - 0.5) * 0.3  // ±15% 변동
 
@@ -304,12 +307,14 @@ class AuthorDashboardService(
             val novel = novelRepository.findById(novelId).orElse(null) ?: return@forEach
             val authorId = novel.authorId
 
-            val cache = generateNovelDashboardCache(
+            val cache = generateNovelDashboardCacheSimple(
                 authorId = authorId,
                 novelId = novelId,
                 logs = logs,
                 targetDate = targetDate,
-                periodType = PeriodType.DAILY
+                periodType = PeriodType.DAILY,
+                includeDetails = includeDetails,
+                variationFactor = variationFactor
             )
             caches.add(cache)
         }
@@ -336,6 +341,72 @@ class AuthorDashboardService(
         }
 
         authorDashboardCacheRepository.saveAll(caches)
+    }
+
+    // 간단한 캐시 생성 (DB 쿼리 최소화)
+    private fun generateNovelDashboardCacheSimple(
+        authorId: Long,
+        novelId: Long,
+        logs: List<com.sparta.novel_insight.domain.EpisodeReadLog>,
+        targetDate: LocalDate,
+        periodType: PeriodType,
+        includeDetails: Boolean,
+        variationFactor: Double
+    ): AuthorDashboardCache {
+        // 기본 통계 (변동 적용)
+        val baseViews = logs.size
+        val totalViews = (baseViews * variationFactor).toInt().coerceAtLeast(1)
+        val uniqueReaders = (logs.distinctBy { it.sessionId }.size * variationFactor).toInt().coerceAtLeast(1)
+        val avgReadingTime = if (logs.isNotEmpty()) {
+            logs.mapNotNull { it.readingDurationSeconds }.average().takeIf { !it.isNaN() }?.toInt() ?: 0
+        } else 0
+        val completionRate = if (logs.isNotEmpty()) {
+            logs.count { it.isCompleted }.toDouble() / logs.size * 100 * variationFactor
+        } else 0.0
+
+        // 감성 분석 - 오늘만 DB 조회, 나머지는 랜덤
+        val (totalReviews, positiveRate, negativeRate) = if (includeDetails) {
+            val sentimentStats = reviewAnalysisRepository.getStatisticsByNovelId(novelId)
+            val total = sentimentStats?.getOrNull(0)?.let { (it as? Long)?.toInt() } ?: 0
+            val positive = sentimentStats?.getOrNull(1)?.let { (it as? Long)?.toInt() } ?: 0
+            val negative = sentimentStats?.getOrNull(2)?.let { (it as? Long)?.toInt() } ?: 0
+            val pRate = if (total > 0) BigDecimal(positive * 100.0 / total).setScale(2, RoundingMode.HALF_UP) else BigDecimal.ZERO
+            val nRate = if (total > 0) BigDecimal(negative * 100.0 / total).setScale(2, RoundingMode.HALF_UP) else BigDecimal.ZERO
+            Triple(total, pRate, nRate)
+        } else {
+            // 트렌드용 랜덤 데이터
+            val total = (50 * variationFactor).toInt()
+            Triple(total, BigDecimal(60 + kotlin.random.Random.nextDouble() * 20).setScale(2, RoundingMode.HALF_UP),
+                   BigDecimal(10 + kotlin.random.Random.nextDouble() * 10).setScale(2, RoundingMode.HALF_UP))
+        }
+
+        // 상세 데이터 (오늘만)
+        val (topEpisodesJson, dropOffEpisodesJson) = if (includeDetails) {
+            val bestEpisodes = try { dropOffAnalysisService.getBestEpisodes(novelId, targetDate, 5) } catch (e: Exception) { emptyList() }
+            val worstEpisodes = try { dropOffAnalysisService.getWorstEpisodes(novelId, targetDate, 5) } catch (e: Exception) { emptyList() }
+            Pair(
+                objectMapper.writeValueAsString(bestEpisodes.map { mapOf("episodeId" to it.episodeId, "completionRate" to it.completionRate, "totalReaders" to it.totalReaders) }),
+                objectMapper.writeValueAsString(worstEpisodes.map { mapOf("episodeId" to it.episodeId, "completionRate" to it.completionRate, "totalReaders" to it.totalReaders) })
+            )
+        } else {
+            Pair(null, null)
+        }
+
+        return AuthorDashboardCache(
+            authorId = authorId,
+            novelId = novelId,
+            totalViews = totalViews,
+            uniqueReaders = uniqueReaders,
+            avgReadingTimeSeconds = avgReadingTime,
+            completionRate = BigDecimal(completionRate.coerceIn(0.0, 100.0)).setScale(2, RoundingMode.HALF_UP),
+            totalReviews = totalReviews,
+            positiveRate = positiveRate,
+            negativeRate = negativeRate,
+            topEpisodesJson = topEpisodesJson,
+            dropOffEpisodesJson = dropOffEpisodesJson,
+            aggregatedDate = targetDate,
+            periodType = periodType
+        )
     }
 
     // 특정 날짜의 대시보드 캐시 생성
