@@ -71,13 +71,13 @@ import java.time.LocalDateTime
 @Table(
     name = "author_dashboard_cache",
     indexes = [
-        Index(name = "idx_author_date", columnList = "author_id,aggregated_date"),
-        Index(name = "idx_author_novel_date", columnList = "author_id,novel_id,aggregated_date")
+        Index(name = "idx_author_date", columnList = "author_id,cache_date"),
+        Index(name = "idx_author_novel_date", columnList = "author_id,novel_id,cache_date")
     ],
     uniqueConstraints = [
         UniqueConstraint(
             name = "uk_author_novel_date_period",
-            columnNames = ["author_id", "novel_id", "aggregated_date", "period_type"]
+            columnNames = ["author_id", "novel_id", "cache_date", "period_type"]
         )
     ]
 )
