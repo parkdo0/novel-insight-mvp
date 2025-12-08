@@ -256,6 +256,41 @@ class MockDataGeneratorService(
             "아직 초반이라 판단하기 이르네요.",
             "더 지켜봐야 할 것 같습니다."
         )
+
+        // 댓글 템플릿
+        private val POSITIVE_COMMENTS = listOf(
+            "이 장면 진짜 소름돋았어요ㅠㅠ",
+            "역시 작가님... 감동입니다",
+            "와 전개 대박... 다음화 기대됩니다",
+            "이 부분에서 눈물났어요ㅜㅜ",
+            "주인공 멋있다!! 응원해요",
+            "최고의 회차입니다 강추!",
+            "몰입감 장난아니네요",
+            "이게 바로 명작이지...",
+            "읽는 내내 심장이 두근두근",
+            "작가님 필력에 감탄합니다"
+        )
+
+        private val NEGATIVE_COMMENTS = listOf(
+            "이 전개는 좀 아쉽네요",
+            "주인공 좀 답답하다...",
+            "여기서 왜 이러는 건지 이해가 안 돼요",
+            "분량이 너무 짧아요ㅠㅠ",
+            "다음 화 빨리 올려주세요!!",
+            "설정이 좀 이상한 것 같은데...",
+            "조금 지루한 감이 있네요"
+        )
+
+        private val NEUTRAL_COMMENTS = listOf(
+            "오 흥미롭네요",
+            "다음 화 기대됩니다",
+            "잘 읽었습니다",
+            "재미있게 봤어요",
+            "계속 연재해주세요!",
+            "구독 완료~",
+            "이제 시작인가요?",
+            "감사합니다!"
+        )
     }
 
     // 전체 Mock 데이터 생성
@@ -306,6 +341,11 @@ class MockDataGeneratorService(
         val dropOffPoints = generateDropOffPoints(episodes = episodes, days = 30)
         println("✅ Drop-off points: ${dropOffPoints.size}")
 
+        // 7. 댓글 생성
+        println("💬 Generating comments...")
+        val comments = generateComments(episodes = episodes, readers = readers, commentsPerEpisode = 5)
+        println("✅ Comments: ${comments.size}")
+
         println("🎉 Mock data generation completed!")
 
         return MockDataSummary(
@@ -314,7 +354,8 @@ class MockDataGeneratorService(
             episodes = episodes.size,
             reviews = reviews.size,
             readLogs = readLogs.size,
-            dropOffPoints = dropOffPoints.size
+            dropOffPoints = dropOffPoints.size,
+            comments = comments.size
         )
     }
 
@@ -940,6 +981,51 @@ class MockDataGeneratorService(
 
         return dropOffPointRepository.findAll().toList()
     }
+
+    // 댓글 생성
+    //
+    // 에피소드별로 댓글을 생성합니다.
+    //
+    // @param episodes 에피소드 리스트
+    // @param readers 독자 리스트
+    // @param commentsPerEpisode 에피소드당 평균 댓글 수
+    @Transactional
+    fun generateComments(
+        episodes: List<Episode>,
+        readers: List<Member>,
+        commentsPerEpisode: Int = 5
+    ): List<EpisodeComment> {
+        val comments = mutableListOf<EpisodeComment>()
+
+        episodes.forEach { episode ->
+            // 에피소드당 0~commentsPerEpisode*2 개의 댓글 랜덤 생성
+            val commentCount = Random.nextInt(0, commentsPerEpisode * 2 + 1)
+
+            repeat(commentCount) {
+                val reader = readers.random()
+                val sentiment = Random.nextDouble()
+                val content = when {
+                    sentiment < 0.6 -> POSITIVE_COMMENTS.random()
+                    sentiment < 0.8 -> NEUTRAL_COMMENTS.random()
+                    else -> NEGATIVE_COMMENTS.random()
+                }
+
+                val comment = EpisodeComment(
+                    content = content,
+                    writerName = reader.nickname,
+                    writerId = reader.id!!,
+                    episode = episode,
+                    likeCount = Random.nextLong(0, 50),
+                    dislikeCount = Random.nextLong(0, 10),
+                    createdAt = LocalDateTime.now().minusDays(Random.nextLong(0, 30))
+                )
+                comments.add(comment)
+            }
+        }
+
+        episodeCommentRepository.saveAll(comments)
+        return comments
+    }
 }
 
 // Mock 데이터 생성 요약
@@ -949,7 +1035,8 @@ data class MockDataSummary(
     val episodes: Int,
     val reviews: Int,
     val readLogs: Int,
-    val dropOffPoints: Int = 0
+    val dropOffPoints: Int = 0,
+    val comments: Int = 0
 )
 
 // MemberRole enum은 domain 패키지에 정의되어 있습니다

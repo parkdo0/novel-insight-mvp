@@ -7,6 +7,8 @@ data class EpisodeResponse(
     val price: Int,
     val isFree: Boolean,
     val isPurchased: Boolean,
-    val viewCount: Long,      // ★ 추가
-    val purchaseCount: Long   // ★ 추가
+    val viewCount: Long,
+    val purchaseCount: Long,
+    val novelId: Long,        // 소설 ID (이전/다음화 네비게이션용)
+    val episodeNumber: Int    // 에피소드 번호
 )
