@@ -1,17 +1,18 @@
-Novel Insight MVP
+# Novel Insight MVP
 소설 플랫폼 토이 프로젝트
 
-프로젝트 소개
+# 프로젝트 소개
 웹소설 플랫폼을 구현한 풀스택 토이 프로젝트입니다.
 
-학습 목적으로 다양한 기술 스택과 아키텍처 패턴을 직접 적용해보기 위해 진행했습니다.
+# 학습 목적으로 다양한 기술 스택과 아키텍처 패턴을 직접 적용해보기 위해 진행했습니다.
 
-AI 활용 안내
+# AI 활용 안내
 이 프로젝트는 AI(Claude)와 함께 개발했습니다.
 
 코드 작성, 아키텍처 설계, 문제 해결 과정에서 AI의 도움을 받았습니다
 학습과 실험을 목적으로 여러 기술을 폭넓게 적용해봤습니다
-기술 스택
+
+# 기술 스택
 Backend (Kotlin + Spring Boot)
 Framework: Spring Boot 3.4, Kotlin
 ORM: Spring Data JPA, QueryDSL
@@ -33,7 +34,9 @@ Framework: FastAPI
 Infrastructure
 Container: Docker, Docker Compose
 Services: MySQL, Redis, RabbitMQ
-프로젝트 구조
+
+# 프로젝트 구조
+```
 novel-insight-mvp/
 ├── novel-insight/          # Spring Boot 백엔드
 │   └── src/main/kotlin/
@@ -55,7 +58,8 @@ novel-insight-mvp/
 │       └── router/         # 라우팅
 ├── python-service/         # FastAPI 서비스
 └── docker-compose.yml      # 인프라 설정
-주요 기능
+```
+# 주요 기능
 회원 시스템
 회원가입/로그인 (JWT 기반 인증)
 마이페이지
@@ -74,7 +78,7 @@ novel-insight-mvp/
 RabbitMQ 기반 비동기 알림
 Spring Batch 통계 집계
 Python 서비스 연동 (텍스트 분석)
-실행 방법
+# 실행 방법
 1. 인프라 실행 (Docker)
 docker-compose up -d
 2. 백엔드 실행
@@ -88,7 +92,7 @@ npm run dev
 cd python-service
 pip install fastapi uvicorn pydantic
 uvicorn main:app --reload --port 8001
-환경 변수
+# 환경 변수
 .env 파일 생성 필요:
 
 # Database
