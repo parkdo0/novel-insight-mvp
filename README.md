@@ -1418,8 +1418,6 @@ MIT License
 ## 👨‍💻 개발자
 
 **박도영**
-**목적**: 문피아 면접 대비 프로젝트
-**브랜치**: `claude/moonpia-interview-prep-01HxdBgkUxxXm6XCVqVU2yxE`
 
 ---
 
