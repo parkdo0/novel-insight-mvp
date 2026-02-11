@@ -95,12 +95,6 @@ uvicorn main:app --reload --port 8001
 # 환경 변수
 .env 파일 생성 필요:
 
-# Database
-MYSQL_ROOT_PASSWORD=root1234!
-MYSQL_DATABASE=novel_insight
-MYSQL_USER=novel_user
-MYSQL_PASSWORD=novel1234!
-
 # JWT
 JWT_SECRET=your-secret-key
 학습 포인트
