@@ -24,6 +24,7 @@ export interface Episode {
     viewCount: number;
     purchaseCount: number;
     novelId: number;
+    episodeNumber: number;
 }
 
 export interface Novel {
@@ -89,7 +90,7 @@ export const toggleLike = async (commentId: number, type: 'LIKE' | 'DISLIKE') =>
 export interface EpisodeWithNav extends Episode {
     prevEpisode?: { id: number; title: string };
     nextEpisode?: { id: number; title: string };
-    episodeNumber?: number;
+    // episodeNumber는 이미 Episode 인터페이스에서 상속됨
 }
 
 // 에피소드 목록 조회 (이전화/다음화 탐색용)

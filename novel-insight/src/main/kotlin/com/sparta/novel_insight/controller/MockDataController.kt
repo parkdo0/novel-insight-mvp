@@ -98,6 +98,7 @@ class MockDataController(
                 sendProgress(emitter, "    - 리뷰: ${summary.reviews}개")
                 sendProgress(emitter, "    - 읽기 로그: ${summary.readLogs}개")
                 sendProgress(emitter, "    - 이탈지점 분석: ${summary.dropOffPoints}개")
+                sendProgress(emitter, "    - 댓글: ${summary.comments}개")
 
                 // 4. 대시보드 캐시 생성 (30일치!)
                 sendProgress(emitter, "[4/5] 대시보드 캐시 생성 중 (30일치 트렌드)...")

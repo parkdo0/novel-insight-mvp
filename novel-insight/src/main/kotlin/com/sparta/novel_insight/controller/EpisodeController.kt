@@ -33,7 +33,8 @@ class EpisodeController(
         @PathVariable novelId: Long,
         @AuthenticationPrincipal user: UserPrincipal?
     ): ResponseEntity<List<EpisodeResponse>> {
-        val episodes = episodeRepository.findAllByNovelId(novelId)
+        // 에피소드 번호 순으로 정렬하여 이전/다음 화 네비게이션이 정상 작동하도록
+        val episodes = episodeRepository.findAllByNovelIdOrderByEpisodeNumberAsc(novelId)
         val novel = novelRepository.findById(novelId).orElseThrow()
         val isAuthor = user?.id == novel.authorId
 
@@ -53,7 +54,9 @@ class EpisodeController(
                 isFree = ep.isFree,
                 isPurchased = isAuthor || ep.isFree || purchasedIds.contains(ep.id),
                 viewCount = ep.viewCount,
-                purchaseCount = ep.purchaseCount
+                purchaseCount = ep.purchaseCount,
+                novelId = novelId,
+                episodeNumber = ep.episodeNumber
             )
         }
         return ResponseEntity.ok(response)
